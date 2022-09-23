@@ -1,0 +1,2 @@
+epoch,training_time,lr,train_loss,train_val_loss,val_val_loss,train_avg_f1,val_avg_f1
+epoch_0_2022-08-23 19:21:07,153.91s,0.00010000,1.0757,1.0089,0.9871,0.6327,0.6226
