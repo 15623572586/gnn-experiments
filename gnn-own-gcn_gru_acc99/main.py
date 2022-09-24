@@ -12,7 +12,7 @@ from models.gcn_gru import EcgGCNGRUModel
 from models.handler import train, save_model, validation
 from data_loader.ptbxl_dataset import ECGPtbXLDataset
 from process.variables import dataset_path, processed_path
-from utils.utils import split_data
+from utils.utils import split_data, performance, drawing_confusion_matric, drawing_roc_auc
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--leads', type=int, default=12)
@@ -28,6 +28,9 @@ parser.add_argument('--gru_num_layers', type=int, default=2)
 parser.add_argument('--num-workers', type=int, default=1,
                     help='Num of workers to load data')  # 多线程加载数据
 parser.add_argument('--log_path', type=str, default='output/logs')
+parser.add_argument('--loss_path', type=str, default='output/loss')
+parser.add_argument('--roc_path', type=str, default='output/roc_auc')
+parser.add_argument('--mat_path', type=str, default='output/conf_matric')
 parser.add_argument('--resume', default=False, action='store_true', help='Resume')
 parser.add_argument('--model_name', default='52_stemgnn.pt', action='store_true', help='Resume')
 parser.add_argument('--start', default=55, action='store_true', help='Resume')
@@ -83,6 +86,12 @@ if __name__ == '__main__':
     else:
         start = 0
     lrs = []
+    mat_path = os.path.join(args.mat_path, str(date.today()) + '-' + time.strftime("%H-%M-%S", time.localtime()))
+    if not os.path.exists(mat_path):
+        os.mkdir(mat_path)
+    roc_path = os.path.join(args.roc_path, str(date.today()) + '-' + time.strftime("%H-%M-%S", time.localtime()))
+    if not os.path.exists(roc_path):
+        os.mkdir(roc_path)
     for epoch in range(start, args.epoch):
         train_loader, test_loader = loadData(args, epoch)
         lrs.append(scheduler.get_last_lr()[0])
@@ -93,20 +102,22 @@ if __name__ == '__main__':
         train_time = (time.time() - epoch_start_time)
         train_time_total += train_time
         save_model(model=model, model_dir=result_train_file, epoch=epoch)
-        train_test_acc, train_test_loss = validation(train_loader, model, criterion, args)
-        test_acc, test_loss = validation(test_loader, model, criterion, args)
+        pred_list, target_list, pred_scores, test_loss = validation(test_loader, model, criterion, args)
+        confusion_matrix, evaluate_res = performance(pred_list, target_list, pred_scores, args)  # 模型评估
+        drawing_confusion_matric(confusion_matrix, os.path.join(mat_path, str(epoch)+'.png'))  # 绘制混淆矩阵
+        drawing_roc_auc(evaluate_res, os.path.join(roc_path, str(epoch)+'.png'))  # 绘制roc_auc曲线
         log_infos = [['epoch_' + str(epoch) + '_' + str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())),
                       '{:5.2f}s'.format(train_time),
                       '{:.8f}'.format(scheduler.get_last_lr()[0]),
                       '{:.4f}'.format(train_loss),
                       '{:.4f}'.format(test_loss),
-                      '{:.4f}'.format(train_test_acc),
-                      '{:.4f}'.format(test_acc),
+                      '{:.4f}'.format(evaluate_res['f1_value']),
+                      '{:.4f}'.format(evaluate_res['acc_value']),
                       ]]
         print(log_infos[0])
         df = pandas.DataFrame(log_infos)
         if not os.path.exists(log_path):
-            header = ['epoch', 'training_time', 'lr', 'train_loss', 'test_loss', 'train_acc', 'val_acc']
+            header = ['epoch', 'training_time', 'lr', 'train_loss', 'test_loss', 'f1_value', 'val_acc']
         else:
             header = False
         df.to_csv(log_path, mode='a', header=header, index=False)
