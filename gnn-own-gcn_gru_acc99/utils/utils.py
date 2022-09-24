@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_auc_score, roc_curve, auc
-import wfdb
 from sklearn.preprocessing import label_binarize
 
 from process.ptbxl_preprocess import class_dict
@@ -18,15 +17,15 @@ def split_data(seed=42):
     return folds[:9], folds[9:]
 
 
-def confusion_matrix(pred_list, target_list, args):
+def confusion_matrix(pred_list, target_list):
     conf_matrix = torch.zeros(5, 5)  # 混淆矩阵
     for p, t in zip(pred_list, target_list):
         conf_matrix[p, t] += 1
-    return conf_matrix
+    return np.array(conf_matrix)
 
 
-def performance(pred_list, target_list, pred_scores, args):
-    conf_matrix = confusion_matrix(pred_list, target_list, args)  # 混淆矩阵
+def performance(pred_list, target_list, pred_scores):
+    conf_matrix = confusion_matrix(pred_list, target_list)  # 混淆矩阵
     precision = precision_score(y_true=target_list, y_pred=pred_list, average='micro')
     recall = recall_score(y_true=target_list, y_pred=pred_list, average='micro')  # 召回率
     f1_value = f1_score(y_pred=pred_list, y_true=target_list, average='micro')
@@ -81,6 +80,7 @@ def drawing_confusion_matric(conf_matric, filename):
     plt.xticks(tick_marks, class_dict)
     plt.yticks(tick_marks, class_dict)
     plt.savefig(filename)
+    plt.close()
     # plt.show()
 
 
@@ -110,6 +110,7 @@ def drawing_roc_auc(data, filename):
     plt.title('5-calsses ROC')
     plt.legend(loc="lower right")
     plt.savefig(filename)
+    plt.close()
     # plt.show()
 
 

@@ -78,6 +78,7 @@ pred_scores = [
 conf_matrix = torch.zeros(5, 5)  # 混淆矩阵
 for p, t in zip(pred_list, target_list):
     conf_matrix[p, t] += 1
+conf_matrix = np.array(conf_matrix)
 # print(conf_matric)
 # print(f1_score(y_true=target_list, y_pred=pred_list, average='weighted'))
 #

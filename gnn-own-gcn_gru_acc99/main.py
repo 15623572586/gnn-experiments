@@ -103,7 +103,7 @@ if __name__ == '__main__':
         train_time_total += train_time
         save_model(model=model, model_dir=result_train_file, epoch=epoch)
         pred_list, target_list, pred_scores, test_loss = validation(test_loader, model, criterion, args)
-        confusion_matrix, evaluate_res = performance(pred_list, target_list, pred_scores, args)  # 模型评估
+        confusion_matrix, evaluate_res = performance(pred_list, target_list, pred_scores)  # 模型评估
         drawing_confusion_matric(confusion_matrix, os.path.join(mat_path, str(epoch)+'.png'))  # 绘制混淆矩阵
         drawing_roc_auc(evaluate_res, os.path.join(roc_path, str(epoch)+'.png'))  # 绘制roc_auc曲线
         log_infos = [['epoch_' + str(epoch) + '_' + str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())),
