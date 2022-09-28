@@ -4,6 +4,8 @@ import torch
 from torch import nn
 import torch.nn.functional as f
 from models.resnet34 import ResNet1d, BasicBlock1d
+from models.tcn import TemporalConvNet
+
 
 class CnnFeatures(nn.Module):
     def __init__(self):
@@ -100,7 +102,8 @@ class StockBlockLayer(nn.Module):
         # nn.init.xavier_normal_(self.weight)
         nn.init.xavier_uniform_(self.weight)
         # batch_first=True:x(batch, seq, feature)
-        self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=gru_num_layers, batch_first=True)
+        # self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=gru_num_layers, batch_first=True)
+        self.tcn = TemporalConvNet(num_inputs=12, num_channels=[64, 128, 128, 12])
         self.block_out = nn.Sequential(
             nn.Linear(self.step_len, self.step_len),
             nn.LeakyReLU(),
@@ -109,20 +112,20 @@ class StockBlockLayer(nn.Module):
             nn.Linear(self.step_len, self.step_len)
         )
 
-    def forward(self, x, adj, hidden_in):
+    def forward(self, x, adj):
         batch, _, _ = x.shape
         x = torch.matmul(adj, x)
-        gru_out, hidden = self.gru(x, hidden_in)
-        gcn_out = torch.matmul(gru_out, self.weight)  # (adj · x) · weight
+        tcn_out = self.tcn(x)
+        gcn_out = torch.matmul(tcn_out, self.weight)  # (adj · x) · weight
         block_out = self.block_out(gcn_out)
         # block_out += x
-        return block_out, hidden
+        return block_out
 
 
-class EcgGCNGRUModel(torch.nn.Module):
+class EcgGCNTCNModel(torch.nn.Module):
     def __init__(self, seq_len, step_len, num_classes, batch_size, leads, gru_num_layers, dropout_rate=0.5,
                  device='cuda'):
-        super(EcgGCNGRUModel, self).__init__()
+        super(EcgGCNTCNModel, self).__init__()
         self.leads = leads
         self.seq_len = seq_len
         self.step_len = step_len
@@ -135,7 +138,8 @@ class EcgGCNGRUModel(torch.nn.Module):
         self.stock_block = StockBlockLayer(seq_len=seq_len, leads=leads, step_len=step_len, batch_size=batch_size,
                                            gru_num_layers=gru_num_layers)
         self.resnet = ResNet1d(BasicBlock1d, [3, 4, 6, 3], seq_len=seq_len)
-        self.cnn = CnnFeatures()
+        # self.cnn = CnnFeatures()
+        self.tcn = TemporalConvNet(num_inputs=12, num_channels=[32, 64, 64, 12], kernel_size=3)
         self.fc = nn.Sequential(
             nn.Linear(12 * self.seq_len, self.seq_len),  # 将这里改成64试试看
             nn.LeakyReLU(),
@@ -145,37 +149,31 @@ class EcgGCNGRUModel(torch.nn.Module):
             nn.Dropout(p=dropout_rate),
             nn.Linear(self.seq_len, self.num_classes),
         )
-        self.fc_out = nn.Sequential(
-            nn.Linear(10, 64),  # 将这里改成64试试看
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(64, 64),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(64, self.num_classes),
-        )
+        # self.fc_out = nn.Sequential(
+        #     nn.Linear(10, 64),  # 将这里改成64试试看
+        #     nn.LeakyReLU(),
+        #     nn.Dropout(p=dropout_rate),
+        #     nn.Linear(64, 64),
+        #     nn.LeakyReLU(),
+        #     nn.Dropout(p=dropout_rate),
+        #     nn.Linear(64, self.num_classes),
+        # )
 
-    def forward(self, x, features):
+    def forward(self, x):
         # x: (batch, leads, seq_len)
         n_step = self.seq_len // self.step_len  #
         res = torch.Tensor().to(self.device)
-        hidden = torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
-            self.device)  # (D∗num_layers,N,Hout)（是否双向乘以层数，batch size大小，输出维度大小）
-        # res_out = self.resnet(x)
+        res_out = self.resnet(x)
         for i in range(n_step):
             start_time = i * self.step_len
             end_time = (i + 1) * self.step_len
             xx = x[:, :, start_time:end_time]
             # part 1:
             mul_L = self.graph_learning(xx)
-            res1, hidden = self.stock_block(xx, mul_L, hidden)  # res:(batch,leads, seq_len)
-            res2, hidden = self.stock_block(res1, mul_L, hidden)  # res:(batch, leads, seq_len)
-            res3, hidden = self.stock_block(res2 + res1, mul_L, hidden)  # res:(batch, leads, seq_len)
-            res = torch.cat((res, res3 + xx), dim=-1)
-        # res += res_out
+            res1 = self.stock_block(xx, mul_L)  # res:(batch,leads, seq_len)
+            res = torch.cat((res, res1), dim=-1)
+        res += res_out
         res = res.view(res.size(0), -1)  # res:(batch,leads*seq_len)
         res = self.fc(res)
-        cnn_res = self.cnn(features)
-        res = torch.cat((res, cnn_res), dim=-1)
 
-        return self.fc_out(res)
+        return res

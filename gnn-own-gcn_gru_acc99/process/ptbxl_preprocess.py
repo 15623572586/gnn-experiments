@@ -1,4 +1,5 @@
 import ast
+import math
 import os.path
 
 import pandas as pd
@@ -30,14 +31,18 @@ def gen_label_csv(label_csv):
         Y['diagnostic_superclass'] = scp_codes.apply(aggregate_diagnostic)
         for _, row in tqdm(Y.iterrows()):
             labels = [0] * 5
+            if math.isnan(row.age):
+                row.age = 50
+            if math.isnan(row.weight):
+                row.weight = 60
             for superclass in row.diagnostic_superclass:
                 if superclass in class_dict:
                     labels[class_dict.index(superclass)] = 1
             if 1 in labels:
-                results.append([row.ecg_id] + labels + [row.strat_fold] + [row.filename_lr] + [row.filename_hr])
+                results.append([row.ecg_id] + [row.age] + [row.sex] + [row.weight] + labels + [row.strat_fold] + [row.filename_lr] + [row.filename_hr])
             else:
                 print(row)
-        df = pd.DataFrame(data=results, columns=['ecg_id'] + class_dict + ['fold'] + ['filename_lr'] + ['filename_hr'])
+        df = pd.DataFrame(data=results, columns=['ecg_id'] + ['age'] + ['sex'] + ['weight'] + class_dict + ['fold'] + ['filename_lr'] + ['filename_hr'])
         df.to_csv(label_csv, index=None)
 
 

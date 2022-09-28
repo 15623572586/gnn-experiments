@@ -31,11 +31,7 @@ def performance(pred_list, target_list, pred_scores):
     f1_value = f1_score(y_pred=pred_list, y_true=target_list, average='micro')
     acc_value = accuracy_score(y_pred=pred_list, y_true=target_list)
 
-    # auc_value = roc_auc_score(y_true=target_list, y_score=torch.softmax(torch.tensor(pred_scores), dim=1).tolist(),
-    #                           multi_class='ovr')
     target_one_hot = label_binarize(target_list, classes=np.arange(5))
-    # fpr, tpr, _ = roc_curve(y_true=np.array(target_one_hot).ravel(), y_score=np.array(pred_scores).ravel())
-
     fpr = dict()
     tpr = dict()
     roc_auc = dict()

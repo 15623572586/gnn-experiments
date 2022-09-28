@@ -41,6 +41,7 @@ class ECGPtbXLDataset(Dataset):
         self.seq_len = seq_len
         self.n_leads = len(self.leads)
         self.classes = ['NORM', 'MI', 'STTC', 'CD', 'HYP']
+        self.features = ['age', 'sex', 'weight']
         self.n_classes = len(self.classes)
         self.data_dict = {}
         self.label_dict = {}
@@ -66,8 +67,11 @@ class ECGPtbXLDataset(Dataset):
         data_std = [1 if i == 0 else i for i in data_std]
         result = (result - data_mean) / data_std
         label_index = np.argmax(labels)
-        x, y = torch.from_numpy(result.transpose()).float(), torch.tensor(label_index)
-        return x, y
+        x, y = torch.from_numpy(result.transpose()).float(), torch.tensor(label_index)  # ecg数据
+
+        features = row[self.features]
+
+        return x, y, torch.tensor(features, dtype=torch.float)
 
     def __len__(self):
         return len(self.labels)

@@ -13,8 +13,8 @@ def train(loader, criterion, args, model, epoch, scheduler, optimizer):
     loss_total = 0
     cnt = 0
     model.train()
-    for idx, (inputs, target) in enumerate(tqdm(loader)):
-        inputs, target = inputs.to(args.device), target.to(args.device)
+    for idx, (inputs, target, features) in enumerate(tqdm(loader)):
+        inputs, target, features = inputs.to(args.device), target.to(args.device), features.to(args.device)
         output = model(inputs)
         loss = criterion(output, target)
         # print(loss.item())
@@ -35,9 +35,10 @@ def validation(loader, model, criterion, args):
     loss_total = 0
     cnt = 0
     pred_list, target_list, pred_scores = [], [], []
-    for data, label in tqdm(loader):  # Iterate in batches over the training/test dataset.
+    for data, label, features in tqdm(loader):  # Iterate in batches over the training/test dataset.
         data = data.to(args.device)
         label = label.to(args.device)
+        features = features.to(args.device)
         out = model(data)
         loss = criterion(out, label)
         loss_total += float(loss.item())
