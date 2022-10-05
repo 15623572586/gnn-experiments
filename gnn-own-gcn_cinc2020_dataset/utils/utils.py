@@ -1,0 +1,171 @@
+import os.path
+from itertools import cycle
+
+import torch
+import wfdb
+import wfdb.processing
+from matplotlib import pyplot as plt
+import numpy as np
+import pandas
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_auc_score, roc_curve, auc, \
+    confusion_matrix
+from sklearn.preprocessing import label_binarize
+
+from process.ptbxl_preprocess import class_dict
+from process.variables import dataset_path
+from utils.evaluate_utils import cal_f1s
+
+
+def split_data(seed=42):
+    folds = range(1, 11)  # 不包含11
+    folds = np.random.RandomState(seed).permutation(folds)  # 根据seec随机排序
+    return folds[:8 ], folds[8:9], folds[9:]
+
+
+def confusion_matrix(y_scores, y_trues):
+    conf_matrix = torch.zeros(5, 5)  # 混淆矩阵
+    for output, ys in zip(y_scores, y_trues):
+        for i in range(0, 5):
+            if ys[i] == 1:
+                conf_matrix[output, i] += 1
+    return np.array(conf_matrix)
+
+
+def performance(output_list, y_trues, y_scores):
+    conf_matrix = confusion_matrix(y_pred=y_scores, y_true=y_trues)  # 混淆矩阵
+    # precision = precision_score(y_true=y_trues, y_pred=output_list, average='micro')
+    # recall = recall_score(y_true=target_list, y_pred=pred_list, average='micro')  # 召回率
+    # f1_value = f1_score(y_pred=pred_list, y_true=target_list, average='micro')
+    # acc_value = accuracy_score(y_pred=pred_list, y_true=target_list)
+
+    f1s = cal_f1s(y_trues, y_scores)
+    avg_f1 = np.mean(f1s)
+
+    # target_one_hot = label_binarize(target_list, classes=np.arange(5))
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+    # 计算每一类roc_auc
+    for i in range(5):
+        fpr[i], tpr[i], _ = roc_curve(y_true=y_trues,
+                                      y_score=y_scores)
+        roc_auc[i] = auc(fpr[i], tpr[i])
+
+    # macro（方法二）
+    # fpr["macro"], tpr["macro"], _ = roc_curve(np.array(target_one_hot).ravel(), np.array(pred_scores).ravel())
+    # roc_auc["macro"] = roc_auc_score(y_true=target_list,
+    #                                  y_score=torch.softmax(torch.tensor(pred_scores), dim=1).tolist(),
+    #                                  average='macro',
+    #                                  multi_class='ovr')
+    performance_dic = {
+        # 'precision': precision,
+        # 'recall': recall,
+        # 'f1s': dict(f1s)
+        'f1_value': avg_f1,
+        # 'acc_value': acc_value,
+        'roc_auc': roc_auc,
+        'fpr': fpr,
+        'tpr': tpr
+    }
+    return conf_matrix, performance_dic
+
+
+def drawing_confusion_matric(conf_matric, filename):
+    # 画混淆矩阵图，配色风格使用cm.Greens
+    plt.imshow(conf_matric, interpolation='nearest', cmap=plt.cm.Greens)
+    # 显示colorbar
+    plt.colorbar()
+    # 使用annotate在图中显示混淆矩阵的数据
+    for x in range(len(conf_matric)):
+        for y in range(len(conf_matric)):
+            plt.annotate(conf_matric[x, y], xy=(x, y), horizontalalignment='center', verticalalignment='center')
+    plt.title('Confusion Matrix')  # 图标title
+    plt.xlabel('True label')  # 坐标轴标签
+    plt.ylabel('Predicted label')  # 坐标轴标签
+
+    tick_marks = np.arange(5)
+    plt.xticks(tick_marks, class_dict)
+    plt.yticks(tick_marks, class_dict)
+    plt.savefig(filename)
+    plt.close()
+    # plt.show()
+
+
+def drawing_roc_auc(data, filename):
+    # Plot all ROC curves
+    fpr = data['fpr']
+    tpr = data['tpr']
+    roc_auc = data['roc_auc']
+    lw = 2
+    plt.figure()
+    plt.plot(fpr["macro"], tpr["macro"],
+             label='macro-average ROC curve (area = {0:0.2f})'
+                   ''.format(roc_auc["macro"]),
+             color='navy', linestyle=':', linewidth=4)
+
+    colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
+    for i, color in zip(range(5), colors):
+        plt.plot(fpr[i], tpr[i], color=color, lw=lw,
+                 label='ROC curve of class {0} (area = {1:0.2f})'
+                       ''.format(class_dict[i], roc_auc[i]))
+
+    plt.plot([0, 1], [0, 1], 'k--', lw=lw)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('5-calsses ROC')
+    plt.legend(loc="lower right")
+    plt.savefig(filename)
+    plt.close()
+    # plt.show()
+
+
+# 曲线图
+def drawing_logs(log_file):
+    res = pandas.read_csv(os.path.join('../output/logs', log_file + '.csv'))
+    train_loss = np.array(res['train_loss'])
+    # val_loss = np.array(res['test_loss'])
+    #
+    # train_f1 = np.array(res['train_acc'])
+    # val_f1 = np.array(res['val_acc'])
+    # lr = np.array(res['lr'])
+
+    epoch = [i for i in range(0, train_loss.size)]
+
+    # fig, ax = plt.subplots()  # 创建图实例
+    plt.plot(epoch, train_loss, label='train_loss')
+    # plt.plot(epoch, val_loss, label='val_loss')
+    # plt.plot(epoch, train_f1, label='train_acc')
+    # plt.plot(epoch, val_f1, label='val_acc')
+    # plt.plot(epoch, lr, label='lr')
+    plt.xlabel('epoch')  # 设置x轴名称 x label
+    plt.ylabel('loss and f1')  # 设置y轴名称 y label
+    plt.title('Simple Plot')  # 设置图名为Simple Plot
+    plt.legend()
+    plt.savefig(os.path.join('../output/loss', log_file+'.svg'))
+    plt.show()
+
+def drawing_ecg(log_file):
+    ecg_data, meta_data = wfdb.rdsamp(os.path.join(dataset_path, 'HR00001'))
+    all_sig = ecg_data.T
+    all_sig_lr = []
+    fs = meta_data['fs']
+    for sig in all_sig:
+        data = wfdb.processing.resample_sig(x=sig, fs=fs, fs_target=100)
+        all_sig_lr.append(data[0])
+    ecg_data = np.array(all_sig_lr).T
+
+    epoch1 = [i for i in range(0, 500)]
+    epoch2 = [i for i in range(0, 100)]
+    plt.plot(epoch1, np.array(all_sig[8][0:500]), label='I')
+    plt.legend()
+    plt.show()
+    plt.plot(epoch2, np.array(all_sig_lr[8][0:100]), label='I')
+    plt.legend()
+    plt.show()
+
+
+
+if __name__ == '__main__':
+    drawing_ecg('2022-10-03-19-21-12')
