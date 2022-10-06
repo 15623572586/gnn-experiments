@@ -6,6 +6,7 @@ import os
 # processed_path = r'D:\projects\python-projects\experiments\dataset\preprocessed\ptb-xl-1.0.2'
 # features_path = os.path.join(processed_path, 'features')
 
-dataset_path = r'D:\learning\科研\数据\PhysioNetChallenge2020\5_PhysioNetChallenge2020_Training_PTB-XL'
+dataset_path = r'D:\projects\python-projects\experiments\dataset\preprocessed\cinc2020\data'
 processed_path = r'D:\projects\python-projects\experiments\dataset\preprocessed\cinc2020'
+processed_data = os.path.join(processed_path, 'data')
 features_path = os.path.join(processed_path, 'features')

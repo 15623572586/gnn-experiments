@@ -19,7 +19,7 @@ from utils.utils import split_data, performance, drawing_confusion_matric, drawi
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--leads', type=int, default=12)
-parser.add_argument('--num_classes', type=int, default=27)
+parser.add_argument('--num_classes', type=int, default=24)
 parser.add_argument('--epoch', type=int, default=30)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--device', type=str, default='cuda')
@@ -65,14 +65,13 @@ if __name__ == '__main__':
 
     # loss
     criterion = nn.BCEWithLogitsLoss()  # 交叉熵损失函数，常用于多分类任务
-    # criterion = nn.BCEWithLogitsLoss(torch.tensor([1, 6, 2, 5, 10], dtype=torch.float).to(args.device))  # 交叉熵损失函数，常用于多分类任务
     # criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数，常用于多分类任务
     model = EcgGCNGRUModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes, leads=args.leads,
                            batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(
         args.device)
     # model = EcgGCNTCNModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes, leads=args.leads,
     #                        batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(args.device)
-    # model = resnet34(input_channels=12).to(args.device)
+    # model = resnet34(input_channels=12, num_classes=args.num_classes).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.1)
 

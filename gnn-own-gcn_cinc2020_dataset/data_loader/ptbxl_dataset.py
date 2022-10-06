@@ -7,7 +7,7 @@ import numpy as np
 import wfdb
 import wfdb.processing
 
-from process.ptbxl_preprocess import classes
+from process.cinc_preprocess import classes
 from process.variables import features_path
 
 

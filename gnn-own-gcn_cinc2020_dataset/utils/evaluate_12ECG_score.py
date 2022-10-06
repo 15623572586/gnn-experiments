@@ -18,44 +18,6 @@
 
 import numpy as np, os, os.path, sys
 
-def evaluate_12ECG_score(label_directory, output_directory):
-    # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
-    weights_file = 'weights.csv'
-    normal_class = '426783006'
-    equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
-
-    # Load the scored classes and the weights for the Challenge metric.
-    print('Loading weights...')
-    classes, weights = load_weights(weights_file, equivalent_classes)
-
-    # Load the label and output files.
-    print('Loading label and output files...')
-    label_files, output_files = find_challenge_files(label_directory, output_directory)
-    labels = load_labels(label_files, classes, equivalent_classes)
-    binary_outputs, scalar_outputs = load_outputs(output_files, classes, equivalent_classes)
-
-    # Evaluate the model by comparing the labels and outputs.
-    print('Evaluating model...')
-
-    print('- AUROC and AUPRC...')
-    auroc, auprc, auroc_classes, auprc_classes = compute_auc(labels, scalar_outputs)
-
-    print('- Accuracy...')
-    accuracy = compute_accuracy(labels, binary_outputs)
-
-    print('- F-measure...')
-    f_measure, f_measure_classes = compute_f_measure(labels, binary_outputs)
-
-    print('- F-beta and G-beta measures...')
-    f_beta_measure, g_beta_measure = compute_beta_measures(labels, binary_outputs, beta=2)
-
-    print('- Challenge metric...')
-    challenge_metric = compute_challenge_metric(weights, labels, binary_outputs, classes, normal_class)
-
-    print('Done.')
-
-    # Return the results.
-    return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric
 
 # Check if the input is a number.
 def is_number(x):
@@ -65,12 +27,13 @@ def is_number(x):
     except ValueError:
         return False
 
+
 # Find Challenge files.
 def find_challenge_files(label_directory, output_directory):
     label_files = list()
     output_files = list()
     for f in sorted(os.listdir(label_directory)):
-        F = os.path.join(label_directory, f) # Full path for label file
+        F = os.path.join(label_directory, f)  # Full path for label file
         if os.path.isfile(F) and F.lower().endswith('.hea') and not f.lower().startswith('.'):
             root, ext = os.path.splitext(f)
             g = root + '.csv'
@@ -86,6 +49,7 @@ def find_challenge_files(label_directory, output_directory):
     else:
         raise IOError('No label or output files found.')
 
+
 # For each set of equivalent classes, replace each class with the representative class for the set.
 def replace_equivalent_classes(classes, equivalent_classes):
     for j, x in enumerate(classes):
@@ -93,6 +57,7 @@ def replace_equivalent_classes(classes, equivalent_classes):
             if x in multiple_classes:
                 classes[j] = multiple_classes[0]  # Use the first class as the representative class.
     return classes
+
 
 # Load a table with row and column names.
 def load_table(table_file):
@@ -110,26 +75,26 @@ def load_table(table_file):
             table.append(arrs)
 
     # Define the numbers of rows and columns and check for errors.
-    num_rows = len(table)-1
-    if num_rows<1:
+    num_rows = len(table) - 1
+    if num_rows < 1:
         raise Exception('The table {} is empty.'.format(table_file))
 
-    num_cols = set(len(table[i])-1 for i in range(num_rows))
-    if len(num_cols)!=1:
+    num_cols = set(len(table[i]) - 1 for i in range(num_rows))
+    if len(num_cols) != 1:
         raise Exception('The table {} has rows with different lengths.'.format(table_file))
     num_cols = min(num_cols)
-    if num_cols<1:
+    if num_cols < 1:
         raise Exception('The table {} is empty.'.format(table_file))
 
     # Find the row and column labels.
-    rows = [table[0][j+1] for j in range(num_rows)]
-    cols = [table[i+1][0] for i in range(num_cols)]
+    rows = [table[0][j + 1] for j in range(num_rows)]
+    cols = [table[i + 1][0] for i in range(num_cols)]
 
     # Find the entries of the table.
     values = np.zeros((num_rows, num_cols), dtype=np.float64)
     for i in range(num_rows):
         for j in range(num_cols):
-            value = table[i+1][j+1]
+            value = table[i + 1][j + 1]
             if is_number(value):
                 values[i, j] = float(value)
             else:
@@ -137,29 +102,34 @@ def load_table(table_file):
 
     return rows, cols, values
 
+
 # Load weights.
 def load_weights(weight_file, equivalent_classes):
     # Load the weight matrix.
     rows, cols, values = load_table(weight_file)
-    assert(rows == cols)
+    assert (rows == cols)
 
     # For each collection of equivalent classes, replace each class with the representative class for the set.
     rows = replace_equivalent_classes(rows, equivalent_classes)
 
     # Check that equivalent classes have identical weights.
     for j, x in enumerate(rows):
-        for k, y in enumerate(rows[j+1:]):
-            if x==y:
-                assert(np.all(values[j, :]==values[j+1+k, :]))
-                assert(np.all(values[:, j]==values[:, j+1+k]))
+        for k, y in enumerate(rows[j + 1:]):
+            if x == y:
+                assert (np.all(values[j, :] == values[j + 1 + k, :]))
+                assert (np.all(values[:, j] == values[:, j + 1 + k]))
 
     # Use representative classes.
-    classes = rows
-    # classes = [x for j, x in enumerate(rows) if x not in rows[:j]]
+    # classes = rows
+    # 713427006, 284470004, 427172004
+    # print(rows)
+    classes = [x for j, x in enumerate(rows) if x not in rows[:j]]
+    # print(classes)
     indices = [rows.index(x) for x in classes]
     weights = values[np.ix_(indices, indices)]
 
     return classes, weights
+
 
 # Load labels from header/label files.
 def load_labels(label_files, classes, equivalent_classes):
@@ -190,6 +160,7 @@ def load_labels(label_files, classes, equivalent_classes):
 
     return labels
 
+
 # Load outputs from output files.
 def load_outputs(output_files, classes, equivalent_classes):
     # The outputs should have the following form:
@@ -209,27 +180,29 @@ def load_outputs(output_files, classes, equivalent_classes):
         with open(output_files[i], 'r') as f:
             lines = [l for l in f if l.strip() and not l.strip().startswith('#')]
             lengths = [len(l.split(',')) for l in lines]
-            if len(lines)>=3 and len(set(lengths))==1:
+            if len(lines) >= 3 and len(set(lengths)) == 1:
                 for j, l in enumerate(lines):
                     arrs = [arr.strip() for arr in l.split(',')]
-                    if j==0:
+                    if j == 0:
                         row = arrs
                         row = replace_equivalent_classes(row, equivalent_classes)
                         tmp_labels.append(row)
-                    elif j==1:
+                    elif j == 1:
                         row = list()
                         for arr in arrs:
                             number = 1 if arr in ('1', 'True', 'true', 'T', 't') else 0
                             row.append(number)
                         tmp_binary_outputs.append(row)
-                    elif j==2:
+                    elif j == 2:
                         row = list()
                         for arr in arrs:
                             number = float(arr) if is_number(arr) else 0
                             row.append(number)
                         tmp_scalar_outputs.append(row)
             else:
-                print('- The output file {} has formatting errors, so all outputs are assumed to be negative for this recording.'.format(output_files[i]))
+                print(
+                    '- The output file {} has formatting errors, so all outputs are assumed to be negative for this recording.'.format(
+                        output_files[i]))
                 tmp_labels.append(list())
                 tmp_binary_outputs.append(list())
                 tmp_scalar_outputs.append(list())
@@ -242,7 +215,7 @@ def load_outputs(output_files, classes, equivalent_classes):
     for i in range(num_recordings):
         dxs = tmp_labels[i]
         for j, x in enumerate(classes):
-            indices = [k for k, y in enumerate(dxs) if x==y]
+            indices = [k for k, y in enumerate(dxs) if x == y]
             if indices:
                 binary_outputs[i, j] = np.any([tmp_binary_outputs[i][k] for k in indices])
                 scalar_outputs[i, j] = np.nanmean([tmp_scalar_outputs[i][k] for k in indices])
@@ -253,16 +226,18 @@ def load_outputs(output_files, classes, equivalent_classes):
 
     return binary_outputs, scalar_outputs
 
+
 # Compute recording-wise accuracy.
 def compute_accuracy(labels, outputs):
     num_recordings, num_classes = np.shape(labels)
 
     num_correct_recordings = 0
     for i in range(num_recordings):
-        if np.all(labels[i, :]==outputs[i, :]):
+        if np.all(labels[i, :] == outputs[i, :]):
             num_correct_recordings += 1
 
     return float(num_correct_recordings) / float(num_recordings)
+
 
 # Compute confusion matrices.
 def compute_confusion_matrices(labels, outputs, normalize=False):
@@ -279,33 +254,34 @@ def compute_confusion_matrices(labels, outputs, normalize=False):
         A = np.zeros((num_classes, 2, 2))
         for i in range(num_recordings):
             for j in range(num_classes):
-                if labels[i, j]==1 and outputs[i, j]==1: # TP
+                if labels[i, j] == 1 and outputs[i, j] == 1:  # TP
                     A[j, 1, 1] += 1
-                elif labels[i, j]==0 and outputs[i, j]==1: # FP
+                elif labels[i, j] == 0 and outputs[i, j] == 1:  # FP
                     A[j, 1, 0] += 1
-                elif labels[i, j]==1 and outputs[i, j]==0: # FN
+                elif labels[i, j] == 1 and outputs[i, j] == 0:  # FN
                     A[j, 0, 1] += 1
-                elif labels[i, j]==0 and outputs[i, j]==0: # TN
+                elif labels[i, j] == 0 and outputs[i, j] == 0:  # TN
                     A[j, 0, 0] += 1
-                else: # This condition should not happen.
+                else:  # This condition should not happen.
                     raise ValueError('Error in computing the confusion matrix.')
     else:
         A = np.zeros((num_classes, 2, 2))
         for i in range(num_recordings):
             normalization = float(max(np.sum(labels[i, :]), 1))
             for j in range(num_classes):
-                if labels[i, j]==1 and outputs[i, j]==1: # TP
-                    A[j, 1, 1] += 1.0/normalization
-                elif labels[i, j]==0 and outputs[i, j]==1: # FP
-                    A[j, 1, 0] += 1.0/normalization
-                elif labels[i, j]==1 and outputs[i, j]==0: # FN
-                    A[j, 0, 1] += 1.0/normalization
-                elif labels[i, j]==0 and outputs[i, j]==0: # TN
-                    A[j, 0, 0] += 1.0/normalization
-                else: # This condition should not happen.
+                if labels[i, j] == 1 and outputs[i, j] == 1:  # TP
+                    A[j, 1, 1] += 1.0 / normalization
+                elif labels[i, j] == 0 and outputs[i, j] == 1:  # FP
+                    A[j, 1, 0] += 1.0 / normalization
+                elif labels[i, j] == 1 and outputs[i, j] == 0:  # FN
+                    A[j, 0, 1] += 1.0 / normalization
+                elif labels[i, j] == 0 and outputs[i, j] == 0:  # TN
+                    A[j, 0, 0] += 1.0 / normalization
+                else:  # This condition should not happen.
                     raise ValueError('Error in computing the confusion matrix.')
 
     return A
+
 
 # Compute macro F-measure.
 def compute_f_measure(labels, outputs):
@@ -325,6 +301,7 @@ def compute_f_measure(labels, outputs):
 
     return macro_f_measure, f_measure
 
+
 # Compute F-beta and G-beta measures from the unofficial phase of the Challenge.
 def compute_beta_measures(labels, outputs, beta):
     num_recordings, num_classes = np.shape(labels)
@@ -335,12 +312,12 @@ def compute_beta_measures(labels, outputs, beta):
     g_beta_measure = np.zeros(num_classes)
     for k in range(num_classes):
         tp, fp, fn, tn = A[k, 1, 1], A[k, 1, 0], A[k, 0, 1], A[k, 0, 0]
-        if (1+beta**2)*tp + fp + beta**2*fn:
-            f_beta_measure[k] = float((1+beta**2)*tp) / float((1+beta**2)*tp + fp + beta**2*fn)
+        if (1 + beta ** 2) * tp + fp + beta ** 2 * fn:
+            f_beta_measure[k] = float((1 + beta ** 2) * tp) / float((1 + beta ** 2) * tp + fp + beta ** 2 * fn)
         else:
             f_beta_measure[k] = float('nan')
-        if tp + fp + beta*fn:
-            g_beta_measure[k] = float(tp) / float(tp + fp + beta*fn)
+        if tp + fp + beta * fn:
+            g_beta_measure[k] = float(tp) / float(tp + fp + beta * fn)
         else:
             g_beta_measure[k] = float('nan')
 
@@ -348,6 +325,7 @@ def compute_beta_measures(labels, outputs, beta):
     macro_g_beta_measure = np.nanmean(g_beta_measure)
 
     return macro_f_beta_measure, macro_g_beta_measure
+
 
 # Compute macro AUROC and macro AUPRC.
 def compute_auc(labels, outputs):
@@ -360,7 +338,7 @@ def compute_auc(labels, outputs):
     for k in range(num_classes):
         # We only need to compute TPs, FPs, FNs, and TNs at distinct output values.
         thresholds = np.unique(outputs[:, k])
-        thresholds = np.append(thresholds, thresholds[-1]+1)
+        thresholds = np.append(thresholds, thresholds[-1] + 1)
         thresholds = thresholds[::-1]
         num_thresholds = len(thresholds)
 
@@ -369,8 +347,8 @@ def compute_auc(labels, outputs):
         fp = np.zeros(num_thresholds)
         fn = np.zeros(num_thresholds)
         tn = np.zeros(num_thresholds)
-        fn[0] = np.sum(labels[:, k]==1)
-        tn[0] = np.sum(labels[:, k]==0)
+        fn[0] = np.sum(labels[:, k] == 1)
+        tn[0] = np.sum(labels[:, k] == 0)
 
         # Find the indices that result in sorted output values.
         idx = np.argsort(outputs[:, k])[::-1]
@@ -379,10 +357,10 @@ def compute_auc(labels, outputs):
         i = 0
         for j in range(1, num_thresholds):
             # Initialize TPs, FPs, FNs, and TNs using values at previous threshold.
-            tp[j] = tp[j-1]
-            fp[j] = fp[j-1]
-            fn[j] = fn[j-1]
-            tn[j] = tn[j-1]
+            tp[j] = tp[j - 1]
+            fp[j] = fp[j - 1]
+            fn[j] = fn[j - 1]
+            tn[j] = tn[j - 1]
 
             # Update the TPs, FPs, FNs, and TNs at i-th output value.
             while i < num_recordings and outputs[idx[i], k] >= thresholds[j]:
@@ -416,15 +394,16 @@ def compute_auc(labels, outputs):
         # sensitivity (x-axis) and TNR/specificity (y-axis) and AUPRC as the area
         # under a piecewise constant with TPR/recall (x-axis) and PPV/precision
         # (y-axis) for class k.
-        for j in range(num_thresholds-1):
-            auroc[k] += 0.5 * (tpr[j+1] - tpr[j]) * (tnr[j+1] + tnr[j])
-            auprc[k] += (tpr[j+1] - tpr[j]) * ppv[j+1]
+        for j in range(num_thresholds - 1):
+            auroc[k] += 0.5 * (tpr[j + 1] - tpr[j]) * (tnr[j + 1] + tnr[j])
+            auprc[k] += (tpr[j + 1] - tpr[j]) * ppv[j + 1]
 
     # Compute macro AUROC and macro AUPRC across classes.
     macro_auroc = np.nanmean(auroc)
     macro_auprc = np.nanmean(auprc)
 
     return macro_auroc, macro_auprc, auroc, auprc
+
 
 # Compute modified confusion matrix for multi-class, multi-label tasks.
 def compute_modified_confusion_matrix(labels, outputs):
@@ -443,9 +422,10 @@ def compute_modified_confusion_matrix(labels, outputs):
             if labels[i, j]:
                 for k in range(num_classes):
                     if outputs[i, k]:
-                        A[j, k] += 1.0/normalization
+                        A[j, k] += 1.0 / normalization
 
     return A
+
 
 # Compute the evaluation metric for the Challenge.
 def compute_challenge_metric(weights, labels, outputs, classes, normal_class):
@@ -474,9 +454,43 @@ def compute_challenge_metric(weights, labels, outputs, classes, normal_class):
 
     return normalized_score
 
+
+def evaluate_12ECG_score(y_trues, y_preds):
+    weights_file = r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\weights.csv'
+    normal_class = '426783006'
+    equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
+    # Load the scored classes and the weights for the Challenge metric.
+    print('Loading weights...')
+    classes, weights = load_weights(weights_file, equivalent_classes)
+    # Evaluate the model by comparing the labels and outputs.
+    print('Evaluating model...')
+
+    print('- AUROC and AUPRC...')
+    auroc, auprc, auroc_classes, auprc_classes = compute_auc(y_trues, y_preds)
+
+    print('- Accuracy...')
+    accuracy = compute_accuracy(y_trues, y_preds)
+
+    print('- F-measure...')
+    f_measure, f_measure_classes = compute_f_measure(y_trues, y_preds)
+
+    print('- F-beta and G-beta measures...')
+    f_beta_measure, g_beta_measure = compute_beta_measures(y_trues, y_preds, beta=2)
+
+    print('- Challenge metric...')
+    challenge_metric = compute_challenge_metric(weights, y_trues, y_preds, classes, normal_class)
+
+    print('Done.')
+
+    # Return the results.
+    return classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric
+
+
 if __name__ == '__main__':
-    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_12ECG_score(sys.argv[1], sys.argv[2])
-    output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
+    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric = evaluate_12ECG_score(
+        sys.argv[1], sys.argv[2])
+    output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(
+        auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
     class_output_string = 'Classes,{}\nAUROC,{}\nAUPRC,{}\nF-measure,{}'.format(
         ','.join(classes),
         ','.join('{:.3f}'.format(x) for x in auroc_classes),

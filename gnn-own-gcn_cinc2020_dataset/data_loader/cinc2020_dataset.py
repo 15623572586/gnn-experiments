@@ -1,14 +1,16 @@
 import os
 
 import torch
+from matplotlib import pyplot as plt
+from scipy.signal import medfilt
 from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
 import wfdb
 import wfdb.processing
 
-from process.ptbxl_preprocess import classes
-from process.variables import features_path
+from process.cinc_preprocess import classes
+from process.variables import features_path, dataset_path
 
 
 def scaling(X, sigma=0.1):
@@ -61,20 +63,23 @@ class ECGCincDataset(Dataset):
     def __getitem__(self, index: int):
         row = self.labels.iloc[index]
         ecg_id = row['ecg_id']
-        filename = str(ecg_id)
-        # filename = row.filename_hr
-        record_path = os.path.join(self.data_dir[ecg_id[0:1]], filename)
-        ecg_data, meta_data = wfdb.rdsamp(record_path)
+        filename = str(ecg_id) + '.csv'
+        # # filename = row.filename_hr
+        record_path = os.path.join(dataset_path, filename)
+        ecg_data_csv = pd.read_csv(record_path, header=None)
+        ecg_data = np.array(ecg_data_csv)
 
-        # 降采样到100Hz
-        all_sig = ecg_data.T
-        all_sig_lr = []
-        fs = meta_data['fs']  # 原始频率
-        for sig in all_sig:
-            data = wfdb.processing.resample_sig(x=sig, fs=fs, fs_target=100)
-            all_sig_lr.append(data[0])
-        ecg_data = np.array(all_sig_lr).T
-        ecg_data = np.nan_to_num(ecg_data)
+        # ecg_data, meta_data = wfdb.rdsamp(record_path)
+        # if np.isnan(ecg_data).any():
+        ecg_data = np.nan_to_num(ecg_data)  # 有些样本导联缺失（某个导联数据全为零），与处理过后，就会变成nan
+        # # 降采样到100Hz
+        # all_sig = ecg_data.T
+        # all_sig_lr = []
+        # fs = meta_data['fs']  # 原始频率
+        # for sig in all_sig:
+        #     data, _ = wfdb.processing.resample_sig(x=sig, fs=fs, fs_target=100)
+        #     all_sig_lr.append(data)
+        # ecg_data = filtered_data.T
 
         ecg_data = transform(ecg_data, self.phase == 'train')
         nsteps, _ = ecg_data.shape

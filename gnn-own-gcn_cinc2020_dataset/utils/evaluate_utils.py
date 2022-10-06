@@ -6,11 +6,9 @@ import torch
 from matplotlib import pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_auc_score, confusion_matrix
 from tqdm import tqdm
-from evaluation_2020 import evaluate_12ECG_score
 from evaluation_2020.evaluate_12ECG_score import load_weights, compute_accuracy, compute_f_measure, \
     compute_beta_measures, compute_challenge_metric
 
-from process.ptbxl_preprocess import classes
 
 
 def cal_scores(y_true, y_pred, y_score):
@@ -141,17 +139,16 @@ def plot_cm(y_trues, y_preds, normalize=True, cmap=plt.cm.Blues):
         plt.close(fig)
 
 
-def test_evaluate(y_trues, y_preds, thresholds):
-    y_preds[y_preds >= thresholds] = 1
-    y_preds[y_preds < thresholds] = 0
+def test_evaluate(y_trues, y_preds, thresholds=None):
+    # y_preds[y_preds >= thresholds] = 1
+    # y_preds[y_preds < thresholds] = 0
 
-    weights_file = r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_expert_features\evaluation_2020\weights.csv'
+    weights_file = r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\weights.csv'
     normal_class = '426783006'
     equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
     # Load the scored classes and the weights for the Challenge metric.
     print('Loading weights...')
     classes, weights = load_weights(weights_file, equivalent_classes)
-
     print('- Accuracy...')
     accuracy = compute_accuracy(y_trues, y_preds)
     print("acc:" + str(accuracy))

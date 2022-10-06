@@ -60,6 +60,21 @@ def gen_label_csv(label_csv):
             'filename_lr'] + ['filename_hr'])
         df.to_csv(label_csv, index=None)
 
+def statistic_sub_class():
+    data = pd.read_csv(os.path.join(data_dir, 'ptbxl_database.csv'))
+    data_it = data.iterrows()
+    scp_codes = data.scp_codes.apply(lambda x: ast.literal_eval(x))
+    class_dict = {}
+    for scp_code in tqdm(scp_codes):
+        for key in scp_code.keys():
+            if scp_code[key] >= 100 and key in agg_df.index:
+                if key not in class_dict:
+                    class_dict[key] = 1
+                else:
+                    class_dict[key] += 1
+    class_dict = dict(sorted(class_dict.items(), key=lambda x: x[1], reverse=True))
+    print(class_dict)
+
 
 
 

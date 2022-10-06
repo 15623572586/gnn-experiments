@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -33,7 +34,7 @@ class BasicBlock1d(nn.Module):
 
 # 1维残差网络
 class ResNet1d(nn.Module):
-    def __init__(self, block, layers, input_channels=12, inplanes=64, num_classes=5):
+    def __init__(self, block, layers, num_classes, input_channels=12, inplanes=64):
         super(ResNet1d, self).__init__()
         self.inplanes = inplanes
         self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=15, stride=2, padding=7, bias=False)

@@ -19,7 +19,7 @@ from utils.evaluate_utils import cal_f1s
 def split_data(seed=42):
     folds = range(1, 11)  # 不包含11
     folds = np.random.RandomState(seed).permutation(folds)  # 根据seec随机排序
-    return folds[:8 ], folds[8:9], folds[9:]
+    return folds[:9], folds[8:9], folds[9:]
 
 
 def confusion_matrix(y_scores, y_trues):

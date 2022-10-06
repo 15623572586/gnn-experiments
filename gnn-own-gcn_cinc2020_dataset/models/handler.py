@@ -7,6 +7,7 @@ from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_s
 from sklearn.preprocessing import label_binarize
 from tqdm import tqdm
 
+from utils.evaluate_12ECG_score import evaluate_12ECG_score
 from utils.evaluate_utils import cal_f1s, cal_aucs, get_thresholds, apply_thresholds, test_evaluate
 
 
@@ -25,20 +26,24 @@ def train(loader, criterion, args, model, epoch, scheduler, optimizer):
         loss.backward()
         optimizer.step()
         loss_total += float(loss.item())
+        if np.isnan(loss.item()):
+            print(idx)
+            print(loss.item())
     scheduler.step()  # 动态更新学习率
     print('Training loss {:.4f}'.format(loss_total / cnt))
     return loss_total / cnt  # 所有batch的平均loss
 
 
 def validation(val_loader, test_loader, model, criterion, args):
-    thresholds = get_thresholds(test_loader, model, args.device)
+    # thresholds = get_thresholds(test_loader, model, args.device)
     #
     # print('Results on test data:')
     # test_loss = apply_thresholds(test_loader, model, criterion, args.device, thresholds)
     # return test_loss
-    output_list, label_list = [], []
+    output_list, label_list, y_preds = [], [], []
     loss_total = 0
     cnt = 0
+
     for (data, label, features) in tqdm(test_loader):
         data, labels, features = data.to(args.device), label.to(args.device), features.to(args.device)
         output = model(data, features)
@@ -50,7 +55,20 @@ def validation(val_loader, test_loader, model, criterion, args):
         label_list.append(labels.data.cpu().numpy())
     y_trues = np.vstack(label_list)
     y_scores = np.vstack(output_list)
-    test_evaluate(y_trues, y_scores, thresholds)
+    y_preds = np.zeros_like(y_scores)
+    y_preds[np.arange(len(y_scores)), y_scores.argmax(1)] = 1
+
+    classes, auroc, auprc, auroc_classes, auprc_classes, accuracy, f_measure, f_measure_classes, f_beta_measure, g_beta_measure, challenge_metric \
+        = evaluate_12ECG_score(y_trues=y_trues, y_preds=y_preds)
+    output_string = 'AUROC,AUPRC,Accuracy,F-measure,Fbeta-measure,Gbeta-measure,Challenge metric\n{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}'.format(
+        auroc, auprc, accuracy, f_measure, f_beta_measure, g_beta_measure, challenge_metric)
+    class_output_string = 'Classes,{}\nAUROC,{}\nAUPRC,{}\nF-measure,{}'.format(
+        ','.join(classes),
+        ','.join('{:.3f}'.format(x) for x in auroc_classes),
+        ','.join('{:.3f}'.format(x) for x in auprc_classes),
+        ','.join('{:.3f}'.format(x) for x in f_measure_classes))
+    print(output_string)
+    print(class_output_string)
     return loss_total / cnt
 
 
