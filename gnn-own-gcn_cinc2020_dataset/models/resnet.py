@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from models.gcn_gru import SelfAttention
+
 
 class BasicBlock1d(nn.Module):
     expansion = 1
@@ -17,7 +19,7 @@ class BasicBlock1d(nn.Module):
         self.conv2 = nn.Conv1d(planes, planes, kernel_size=7, stride=1, padding=3, bias=False)
         self.bn2 = nn.BatchNorm1d(planes)
         self.downsample = downsample
-    
+
     def forward(self, x):
         residual = x
         out = self.conv1(x)
@@ -31,6 +33,7 @@ class BasicBlock1d(nn.Module):
         out += residual
         out = self.relu(out)
         return out
+
 
 # 1维残差网络
 class ResNet1d(nn.Module):
@@ -49,7 +52,7 @@ class ResNet1d(nn.Module):
         self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
         self.fc = nn.Linear(512 * block.expansion * 2, num_classes)
         self.dropout = nn.Dropout(0.2)
-    
+
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
@@ -64,7 +67,7 @@ class ResNet1d(nn.Module):
             layers.append(block(self.inplanes, planes))
         return nn.Sequential(*layers)
 
-    def forward(self, x, _):
+    def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -77,12 +80,34 @@ class ResNet1d(nn.Module):
         x2 = self.adaptivemaxpool(x)
         x = torch.cat((x1, x2), dim=1)
         x = x.view(x.size(0), -1)
+        # return self.adaptivemaxpool(x)
         return self.fc(x)
 
 
-# def resnet18(**kwargs):
-#     model = ResNet1d(BasicBlock1d, [2, 2, 2, 2], **kwargs)
-#     return model
+# class Net_A(nn.Module):
+#     def __init__(self, seq_len, step_len, num_classes, batch_size, leads, gru_num_layers, dropout_rate=0.5,
+#                  device='cuda'):
+#         super(Net_A, self).__init__()
+#         self.gru_num_layers = gru_num_layers
+#         self.batch = batch_size
+#         self.resnet = ResNet1d(BasicBlock1d, [3, 4, 6, 3], num_classes=9)
+#         self.gru = nn.GRU(input_size=128, hidden_size=128, num_layers=gru_num_layers, batch_first=True)
+#         self.attention = SelfAttention(num_attention_heads=2, input_size=128, hidden_size=128)
+#         self.fc = nn.Sequential(
+#             nn.Linear(12 * 128, 128),  # 将这里改成64试试看
+#             nn.LeakyReLU(),
+#             nn.Dropout(p=0.5),
+#             nn.Linear(128, 9),
+#         )
+#
+#     def forward(self, x, features=None):
+#         res_out = self.resnet(x)
+#         hidden = torch.zeros(self.gru_num_layers, self.batch, 128).to('cuda')
+#         gru_out, _ = self.gru(res_out, hidden)
+#         # att_out = self.attention(gru_out)
+#         res = gru_out.reshape(gru_out.size(0), -1)  # res:(batch,leads*seq_len)
+#         fc = self.fc(res)
+#         return fc
 
 
 def resnet34(**kwargs):  # **kwargs接收带键值对的参数

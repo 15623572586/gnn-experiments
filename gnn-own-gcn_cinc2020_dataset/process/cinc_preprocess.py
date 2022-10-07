@@ -19,9 +19,9 @@ from process.variables import processed_path, processed_data
 leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
 
 # classes = ['IAVB', 'AF', 'AFL', 'Brady', 'CRBBB', 'IRBBB', 'LAnFB', 'LAD', 'LBBB', 'LQRSV', 'NSIVCB', 'PR', 'PAC', 'PVC', 'LPR', 'LQT', 'QAb', 'RAD', 'RBBB', 'SA', 'SB', 'NSR', 'STach', 'SVPB', 'TAb', 'TInv', 'VPB']
-classes = ['IAVB', 'AF', 'AFL', 'Brady', 'CRBBB', 'IRBBB', 'LAnFB', 'LAD', 'LBBB', 'LQRSV', 'NSIVCB', 'PR', 'PAC',
-           'PVC', 'LPR', 'LQT', 'QAb', 'RAD', 'SA', 'SB', 'NSR', 'STach', 'TAb', 'TInv']
-
+# classes = ['IAVB', 'AF', 'AFL', 'Brady', 'CRBBB', 'IRBBB', 'LAnFB', 'LAD', 'LBBB', 'LQRSV', 'NSIVCB', 'PR', 'PAC',
+#            'PVC', 'LPR', 'LQT', 'QAb', 'RAD', 'SA', 'SB', 'NSR', 'STach', 'TAb', 'TInv']
+classes = ['IAVB', 'AF', 'CRBBB', 'PAC', 'PVC', 'SB', 'NSR', 'STach', 'TAb']
 normal_class = '426783006'
 equivalent_classes = {
     '59118001': '713427006',
@@ -57,7 +57,7 @@ paths = [
 # 来自CinC2020的数据
 def gen_label_cinc_csv(label_csv):
     df = pd.read_csv(os.path.join(
-        r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\dx_mapping_scored_1.csv'))
+        r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\dx_mapping_scored_class8.csv'))
     code_map = {}
     for i, row in df.iterrows():
         code_map[str(row['SNOMED CT Code'])] = row['Abbreviation']

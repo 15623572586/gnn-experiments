@@ -22,52 +22,52 @@ def split_data(seed=42):
     return folds[:9], folds[8:9], folds[9:]
 
 
-def confusion_matrix(y_scores, y_trues):
-    conf_matrix = torch.zeros(5, 5)  # 混淆矩阵
-    for output, ys in zip(y_scores, y_trues):
-        for i in range(0, 5):
-            if ys[i] == 1:
-                conf_matrix[output, i] += 1
-    return np.array(conf_matrix)
+# def confusion_matrix(y_scores, y_trues):
+#     conf_matrix = torch.zeros(5, 5)  # 混淆矩阵
+#     for output, ys in zip(y_scores, y_trues):
+#         for i in range(0, 5):
+#             if ys[i] == 1:
+#                 conf_matrix[output, i] += 1
+#     return np.array(conf_matrix)
 
 
-def performance(output_list, y_trues, y_scores):
-    conf_matrix = confusion_matrix(y_pred=y_scores, y_true=y_trues)  # 混淆矩阵
-    # precision = precision_score(y_true=y_trues, y_pred=output_list, average='micro')
-    # recall = recall_score(y_true=target_list, y_pred=pred_list, average='micro')  # 召回率
-    # f1_value = f1_score(y_pred=pred_list, y_true=target_list, average='micro')
-    # acc_value = accuracy_score(y_pred=pred_list, y_true=target_list)
-
-    f1s = cal_f1s(y_trues, y_scores)
-    avg_f1 = np.mean(f1s)
-
-    # target_one_hot = label_binarize(target_list, classes=np.arange(5))
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
-    # 计算每一类roc_auc
-    for i in range(5):
-        fpr[i], tpr[i], _ = roc_curve(y_true=y_trues,
-                                      y_score=y_scores)
-        roc_auc[i] = auc(fpr[i], tpr[i])
-
-    # macro（方法二）
-    # fpr["macro"], tpr["macro"], _ = roc_curve(np.array(target_one_hot).ravel(), np.array(pred_scores).ravel())
-    # roc_auc["macro"] = roc_auc_score(y_true=target_list,
-    #                                  y_score=torch.softmax(torch.tensor(pred_scores), dim=1).tolist(),
-    #                                  average='macro',
-    #                                  multi_class='ovr')
-    performance_dic = {
-        # 'precision': precision,
-        # 'recall': recall,
-        # 'f1s': dict(f1s)
-        'f1_value': avg_f1,
-        # 'acc_value': acc_value,
-        'roc_auc': roc_auc,
-        'fpr': fpr,
-        'tpr': tpr
-    }
-    return conf_matrix, performance_dic
+# def performance(output_list, y_trues, y_scores):
+#     conf_matrix = confusion_matrix(y_pred=y_scores, y_true=y_trues)  # 混淆矩阵
+#     # precision = precision_score(y_true=y_trues, y_pred=output_list, average='micro')
+#     # recall = recall_score(y_true=target_list, y_pred=pred_list, average='micro')  # 召回率
+#     # f1_value = f1_score(y_pred=pred_list, y_true=target_list, average='micro')
+#     # acc_value = accuracy_score(y_pred=pred_list, y_true=target_list)
+#
+#     f1s = cal_f1s(y_trues, y_scores)
+#     avg_f1 = np.mean(f1s)
+#
+#     # target_one_hot = label_binarize(target_list, classes=np.arange(5))
+#     fpr = dict()
+#     tpr = dict()
+#     roc_auc = dict()
+#     # 计算每一类roc_auc
+#     for i in range(5):
+#         fpr[i], tpr[i], _ = roc_curve(y_true=y_trues,
+#                                       y_score=y_scores)
+#         roc_auc[i] = auc(fpr[i], tpr[i])
+#
+#     # macro（方法二）
+#     # fpr["macro"], tpr["macro"], _ = roc_curve(np.array(target_one_hot).ravel(), np.array(pred_scores).ravel())
+#     # roc_auc["macro"] = roc_auc_score(y_true=target_list,
+#     #                                  y_score=torch.softmax(torch.tensor(pred_scores), dim=1).tolist(),
+#     #                                  average='macro',
+#     #                                  multi_class='ovr')
+#     performance_dic = {
+#         # 'precision': precision,
+#         # 'recall': recall,
+#         # 'f1s': dict(f1s)
+#         'f1_value': avg_f1,
+#         # 'acc_value': acc_value,
+#         'roc_auc': roc_auc,
+#         'fpr': fpr,
+#         'tpr': tpr
+#     }
+#     return conf_matrix, performance_dic
 
 
 def drawing_confusion_matric(conf_matric, filename):

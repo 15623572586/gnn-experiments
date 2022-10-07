@@ -456,7 +456,7 @@ def compute_challenge_metric(weights, labels, outputs, classes, normal_class):
 
 
 def evaluate_12ECG_score(y_trues, y_preds):
-    weights_file = r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\weights.csv'
+    weights_file = r'D:\projects\python-projects\experiments\own-model\gnn-own-gcn_cinc2020_dataset\evaluation_2020\weights_class_9.csv'
     normal_class = '426783006'
     equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
     # Load the scored classes and the weights for the Challenge metric.

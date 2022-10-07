@@ -29,6 +29,9 @@ def train(loader, criterion, args, model, epoch, scheduler, optimizer):
         if np.isnan(loss.item()):
             print(idx)
             print(loss.item())
+            raise ValueError(
+                "loss is nan"
+            )
     scheduler.step()  # 动态更新学习率
     print('Training loss {:.4f}'.format(loss_total / cnt))
     return loss_total / cnt  # 所有batch的平均loss

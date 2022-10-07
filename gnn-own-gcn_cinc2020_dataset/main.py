@@ -11,22 +11,21 @@ from torch.utils.data import DataLoader
 from data_loader.cinc2020_dataset import ECGCincDataset
 from models.gcn_gru import EcgGCNGRUModel
 from models.handler import train, save_model, validation
-from data_loader.ptbxl_dataset import ECGPtbXLDataset
-from models.resnet import resnet34
-from models.stgcn import EcgGCNTCNModel
 from process.variables import dataset_path, processed_path
-from utils.utils import split_data, performance, drawing_confusion_matric, drawing_roc_auc
+from utils.utils import split_data
+
+# from utils.utils import split_data, performance, drawing_confusion_matric, drawing_roc_auc
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--leads', type=int, default=12)
-parser.add_argument('--num_classes', type=int, default=24)
+parser.add_argument('--num_classes', type=int, default=9)
 parser.add_argument('--epoch', type=int, default=30)
-parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--device', type=str, default='cuda')
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--decay_rate', type=float, default=1e-5)
+parser.add_argument('--decay_rate', type=float, default=1e-3)
 parser.add_argument('--seq_len', type=int, default=1000)
-parser.add_argument('--step_len', type=int, default=20)
+parser.add_argument('--step_len', type=int, default=100)
 parser.add_argument('--gru_num_layers', type=int, default=2)
 parser.add_argument('--num-workers', type=int, default=1,
                     help='Num of workers to load data')  # 多线程加载数据
@@ -44,7 +43,6 @@ def loadData(args, epoch):
     processed_data_dir = os.path.join(processed_path)  # 处理后的数据目录
 
     label_csv = os.path.join(processed_data_dir, 'labels_cinc.csv')
-    # label_csv = os.path.join(processed_data_dir, 'labels.csv')
     train_folds, val_folds, test_folds = split_data(seed=0)
 
     train_dataset = ECGCincDataset('train', org_data_dir, label_csv, train_folds, seq_len=args.seq_len)
