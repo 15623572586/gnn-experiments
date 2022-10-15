@@ -46,7 +46,8 @@ class ECGCincDataset(Dataset):
             'Q': r'D:\learning\科研\数据\PhysioNetChallenge2020\2_PhysioNetChallenge2020_Training_2_China 12-Lead ECG Challenge Database',
             'S': r'D:\learning\科研\数据\PhysioNetChallenge2020\4_PhysioNetChallenge2020_Training_PTB',
             'H': r'D:\learning\科研\数据\PhysioNetChallenge2020\5_PhysioNetChallenge2020_Training_PTB-XL',
-            'E': r'D:\learning\科研\数据\PhysioNetChallenge2020\6_PhysioNetChallenge2020_Training_E'
+            'E': r'D:\learning\科研\数据\PhysioNetChallenge2020\6_PhysioNetChallenge2020_Training_E',
+            'G': r''
         }
         self.features_dir = features_path
         self.labels = df
@@ -86,22 +87,21 @@ class ECGCincDataset(Dataset):
         ecg_data = ecg_data[-self.seq_len:, -self.n_leads:]
         result = np.zeros((self.seq_len, self.n_leads))
         result[-nsteps:, :] = ecg_data
-        if self.label_dict.get(ecg_id):
-            labels = self.label_dict.get(ecg_id)
-        else:
-            labels = row[self.classes].to_numpy(dtype=np.float32)
-            self.label_dict[ecg_id] = labels
+        # if np.any(self.label_dict.get(ecg_id)):
+        #     labels = np.any(self.label_dict.get(ecg_id))
+        # else:
+        labels = row[self.classes].to_numpy(dtype=np.float32)
+            # self.label_dict[ecg_id] = labels
         # z_score归一化
         data_mean = np.mean(result, axis=0)
         data_std = np.std(result, axis=0)
         data_std = [1 if i == 0 else i for i in data_std]
         result = (result - data_mean) / data_std
-        # label_index = np.argmax(labels)
-        x, y = torch.from_numpy(result.transpose()).float(), torch.tensor(labels)  # ecg数据
+        label_index = np.argmax(labels)
+        x, y = torch.from_numpy(result.transpose()).float(), torch.tensor(label_index)  # ecg数据
+        # features = pd.read_csv(os.path.join(features_path, str(ecg_id) + '.csv')).to_numpy(dtype=np.float32)
 
-        features = pd.read_csv(os.path.join(features_path, str(ecg_id) + '.csv')).to_numpy(dtype=np.float32)
-
-        return x, y, torch.tensor(features, dtype=torch.float)
+        return x, y, torch.tensor([1], dtype=torch.float)
 
     def __len__(self):
         return len(self.labels)
