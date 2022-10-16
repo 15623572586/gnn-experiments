@@ -6,7 +6,7 @@ class GraphConvolution(nn.Module):
     def __init__(self, input_dim, output_dim, dropout, bias=False):
         super(GraphConvolution, self).__init__()
         self.dropout = nn.Dropout(dropout)
-        self.weight = nn.Parameter(torch.Tensor(1, input_dim, output_dim))
+        self.weight = nn.Parameter(torch.Tensor(input_dim, output_dim))
         nn.init.xavier_uniform_(self.weight)  # xavier初始化，就是论文里的glorot初始化
         if bias:
             self.bias = nn.Parameter(torch.Tensor(output_dim))

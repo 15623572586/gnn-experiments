@@ -139,8 +139,8 @@ class GraphLearning(nn.Module):
         self.leads = n_leads
         self.seq_len = seq_len
         self.device = device
-        self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=1, batch_first=True)
-        self.attention = SelfAttention(2, step_len, n_leads, 0.5)
+        self.gru = nn.GRU(input_size=seq_len, hidden_size=seq_len, num_layers=1, batch_first=True)
+        self.attention = SelfAttention(2, seq_len, n_leads, 0.5)
 
     def reset_parameters(self):  # 参数随机初始化函数
         stdv = 1. / math.sqrt(self.weight.size(1))  # stdv=1/根号(out_features)
@@ -152,68 +152,69 @@ class GraphLearning(nn.Module):
         # input:(batch,leads,step_len)
         x, _ = self.gru(x)
         att_out = self.attention(x)
+        att_out = torch.mean(att_out, dim=0)
         adj = torch.relu(att_out)  # 过滤掉负数
-        adj = 0.5 * (adj + adj.permute(0, 2, 1))  # 注意力输出矩阵是非对称的，转成对称
+        adj = 0.5 * (adj + adj.permute(1, 0))  # 注意力输出矩阵是非对称的，转成对称
         return self.calculate_laplacian(adj)
 
     def calculate_laplacian(self, matrix):
         # matrix = matrix + torch.eye(matrix.size(0))
         row_sum = matrix.sum(1)  # 度
         d_inv_sqrt = torch.pow(row_sum, -0.5).flatten()  # 度开根号 (batch*leads, 1)
-        d_inv_sqrt = d_inv_sqrt.view(self.batch, self.leads)  # (batch, leads)
+        # d_inv_sqrt = d_inv_sqrt.view(self.batch, self.leads)  # (batch, leads)
         d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
         d_mat_inv_sqrt = torch.diag_embed(d_inv_sqrt)  # 开根号后的度矩阵  (batch, leads, leads)
         normalized_laplacian = torch.matmul(torch.matmul(d_mat_inv_sqrt, matrix), d_mat_inv_sqrt)  # D^0.5·A·D^0.5
         return normalized_laplacian
 
 
-class GraphLearning_bak(nn.Module):
-    def __init__(self, batch, n_leads, seq_len, step_len, device='cuda'):
-        super(GraphLearning, self).__init__()
-        self.batch = batch
-        self.leads = n_leads
-        self.seq_len = seq_len
-        self.device = device
-        self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=1, batch_first=True)
-        self.key_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
-        self.query_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
-        self.value_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
-        nn.init.xavier_normal_(self.key_weight)
-        nn.init.xavier_normal_(self.query_weight)
-        nn.init.xavier_normal_(self.value_weight)
-        # self.reset_parameters()
-
-    def reset_parameters(self):  # 参数随机初始化函数
-        stdv = 1. / math.sqrt(self.weight.size(1))  # stdv=1/根号(out_features)
-        self.weight.data.uniform_(-stdv, stdv)  # weight在区间(-stdv, stdv)之间均匀分布随机初始化
-        # if self.bias is not None:  # 变量是否不是None
-        #     self.bias.data.uniform_(-stdv, stdv)  # bias均匀分布随机初始化
-
-    def forward(self, x):
-        # input:(batch,leads,step_len)
-        x, _ = self.gru(x)
-        # 计算 k,q,v
-        batch, _, _ = x.shape
-        key = torch.matmul(x, self.key_weight)
-        query = torch.matmul(x, self.query_weight)
-        value = torch.matmul(x, self.value_weight)
-        # 计算注意力得分
-        attention_score = torch.matmul(query, key.permute(0, 2, 1))  # query x key^T
-        attention_score = torch.softmax(attention_score, dim=1)  # 按行进行归一化
-        adj = torch.matmul(attention_score, value)  # 输出注意力矩阵
-        adj = torch.relu(adj)  # 过滤掉负数
-        adj = 0.5 * (adj + adj.permute(0, 2, 1))  # 注意力输出矩阵是非对称的，转成对称
-        return self.calculate_laplacian(adj)
-
-    def calculate_laplacian(self, matrix):
-        # matrix = matrix + torch.eye(matrix.size(0))
-        row_sum = matrix.sum(1)  # 度
-        d_inv_sqrt = torch.pow(row_sum, -0.5).flatten()  # 度开根号 (batch*leads, 1)
-        d_inv_sqrt = d_inv_sqrt.view(self.batch, self.leads)  # (batch, leads)
-        d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
-        d_mat_inv_sqrt = torch.diag_embed(d_inv_sqrt)  # 开根号后的度矩阵  (batch, leads, leads)
-        normalized_laplacian = torch.matmul(torch.matmul(d_mat_inv_sqrt, matrix), d_mat_inv_sqrt)  # D^0.5·A·D^0.5
-        return normalized_laplacian
+# class GraphLearning_bak(nn.Module):
+#     def __init__(self, batch, n_leads, seq_len, step_len, device='cuda'):
+#         super(GraphLearning, self).__init__()
+#         self.batch = batch
+#         self.leads = n_leads
+#         self.seq_len = seq_len
+#         self.device = device
+#         self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=1, batch_first=True)
+#         self.key_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
+#         self.query_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
+#         self.value_weight = nn.Parameter(torch.Tensor(batch, step_len, n_leads)).to(device)  # 邻接矩阵权重向量
+#         nn.init.xavier_normal_(self.key_weight)
+#         nn.init.xavier_normal_(self.query_weight)
+#         nn.init.xavier_normal_(self.value_weight)
+#         # self.reset_parameters()
+#
+#     def reset_parameters(self):  # 参数随机初始化函数
+#         stdv = 1. / math.sqrt(self.weight.size(1))  # stdv=1/根号(out_features)
+#         self.weight.data.uniform_(-stdv, stdv)  # weight在区间(-stdv, stdv)之间均匀分布随机初始化
+#         # if self.bias is not None:  # 变量是否不是None
+#         #     self.bias.data.uniform_(-stdv, stdv)  # bias均匀分布随机初始化
+#
+#     def forward(self, x):
+#         # input:(batch,leads,step_len)
+#         x, _ = self.gru(x)
+#         # 计算 k,q,v
+#         batch, _, _ = x.shape
+#         key = torch.matmul(x, self.key_weight)
+#         query = torch.matmul(x, self.query_weight)
+#         value = torch.matmul(x, self.value_weight)
+#         # 计算注意力得分
+#         attention_score = torch.matmul(query, key.permute(0, 2, 1))  # query x key^T
+#         attention_score = torch.softmax(attention_score, dim=1)  # 按行进行归一化
+#         adj = torch.matmul(attention_score, value)  # 输出注意力矩阵
+#         adj = torch.relu(adj)  # 过滤掉负数
+#         adj = 0.5 * (adj + adj.permute(0, 2, 1))  # 注意力输出矩阵是非对称的，转成对称
+#         return self.calculate_laplacian(adj)
+#
+#     def calculate_laplacian(self, matrix):
+#         # matrix = matrix + torch.eye(matrix.size(0))
+#         row_sum = matrix.sum(1)  # 度
+#         d_inv_sqrt = torch.pow(row_sum, -0.5).flatten()  # 度开根号 (batch*leads, 1)
+#         d_inv_sqrt = d_inv_sqrt.view(self.batch, self.leads)  # (batch, leads)
+#         d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
+#         d_mat_inv_sqrt = torch.diag_embed(d_inv_sqrt)  # 开根号后的度矩阵  (batch, leads, leads)
+#         normalized_laplacian = torch.matmul(torch.matmul(d_mat_inv_sqrt, matrix), d_mat_inv_sqrt)  # D^0.5·A·D^0.5
+#         return normalized_laplacian
 
 
 class StockBlockLayer(nn.Module):
@@ -229,6 +230,7 @@ class StockBlockLayer(nn.Module):
         self.gcn = GraphConvolution(step_len, step_len, 0.5)
         # batch_first=True:x(batch, seq, feature)
         self.gru = nn.GRU(input_size=step_len, hidden_size=step_len, num_layers=gru_num_layers, batch_first=True)
+        # self.resnet = ResNet1d(BasicBlock1d, [3, 4, 6, 3], seq_len=step_len)
         self.block_out = nn.Sequential(
             nn.Linear(self.step_len, self.step_len),
             nn.LeakyReLU(),
@@ -250,12 +252,24 @@ class StockBlockLayer(nn.Module):
     #     # block_out += x
     #     return block_out, hidden
 
-    def forward(self, x, adj, hidden_in):
-        batch, _, _ = x.shape
+    def forward(self, x, adj, hidden_real, hidden_imag):
         gcn_out = self.gcn(x, adj)
-        gru_out, hidden = self.gru(gcn_out, hidden_in)
+        # 频域学习
+        ffted = torch.fft.fft2(gcn_out, dim=(-2, -1))
+        ffted_real = ffted.real
+        ffted_imag = ffted.imag
+        real_gru, hidden_real = self.gru(ffted_real, hidden_real)
+        imag_gru, hidden_imag = self.gru(ffted_imag, hidden_imag)
+        iffted = torch.fft.ifft2(torch.complex(real_gru, imag_gru), dim=(-2, -1))
+        iffted_abs_norm = torch.abs(iffted) / self.step_len
+        # 残差
+        # res_out = self.resnet(gcn_out)
+        # gru_res_out = res_out + iffted_abs_norm
+        gcn_out = self.gcn(iffted_abs_norm, adj)
+        # gcn_out = self.gcn(iffted_abs_norm, adj)
+        # gru_out, hidden = self.gru(gcn_out, hidden_real, hidden_imag )
         block_out = self.block_out(gcn_out)
-        return block_out, hidden
+        return block_out, hidden_real, hidden_imag
 
     def drawing(self, ecg_data):
         ecg_data = np.array(ecg_data[0])
@@ -292,7 +306,7 @@ class EcgGCNGRUModel(torch.nn.Module):
         #     nn.Linear(self.seq_len, self.num_classes),
         # )
         self.fc = nn.Sequential(
-            nn.Linear(24, 64),  # 将这里改成64试试看
+            nn.Linear(12, 64),  # 将这里改成64试试看
             nn.LeakyReLU(),
             nn.Dropout(p=dropout_rate),
             nn.Linear(64, 64),  # 将这里改成64试试看
@@ -305,26 +319,29 @@ class EcgGCNGRUModel(torch.nn.Module):
         # x: (batch, leads, seq_len)
         n_step = self.seq_len // self.step_len  #
         res = torch.Tensor().to(self.device)
-        hidden = torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
+        hidden_real, hidden_imag = torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
+            self.device), torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
             self.device)  # (D∗num_layers,N,Hout)（是否双向乘以层数，batch size大小，输出维度大小）
         res_out = self.resnet(x)
-        # mul_L = self.graph_learning(features.permute(0, 2, 1))
+        mul_L = self.graph_learning(x)
         for i in range(n_step):
             start_time = i * self.step_len
             end_time = (i + 1) * self.step_len
             xx = x[:, :, start_time:end_time]
             # part 1:
-            mul_L = self.graph_learning(xx)
-            res1, hidden = self.stock_block(xx, mul_L, hidden)  # res:(batch,leads, seq_len)
-            res2, hidden = self.stock_block(res1, mul_L, hidden)  # res:(batch, leads, seq_len)
+            # mul_L = self.graph_learning(xx)
+            res1, hidden_real, hidden_imag = self.stock_block(xx, mul_L, hidden_real, hidden_imag)  # res:(batch,leads, seq_len)
+            res2, hidden_real, hidden_imag = self.stock_block(res1, mul_L, hidden_real, hidden_imag)  # res:(batch, leads, seq_len)
             # res3, hidden = self.stock_block(res2 + res1, mul_L, hidden)  # res:(batch, leads, seq_len)
             # res = torch.cat((res, res2), dim=-1)
             res = torch.cat((res, res2 + xx), dim=-1)
         # res = self.attention(res)
         res += res_out
+        # x0 = self.adaptivemaxpool(x)
         x1 = self.adaptivemaxpool(res)
         x2 = self.adaptiveavgpool(res)
-        res = torch.cat((x1, x2), dim=2)
+        # res = torch.cat((x1, x2), dim=2)
+        res = x1 + x2
         res = res.view(res.size(0), -1)  # res:(batch,leads*seq_len)
         res = self.fc(res)
         return res

@@ -26,7 +26,7 @@ parser.add_argument('--epoch', type=int, default=100)
 parser.add_argument('--lr', type=float, default=5e-4)
 parser.add_argument('--device', type=str, default='cuda')
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--decay_rate', type=float, default=1e-3)
+parser.add_argument('--decay_rate', type=float, default=1e-5)
 parser.add_argument('--seq_len', type=int, default=1000)
 parser.add_argument('--step_len', type=int, default=100)
 parser.add_argument('--gru_num_layers', type=int, default=2)
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # loss
-    # criterion = FocalLoss(gamma=5)
+    # criterion = FocalLoss(gamma=5, class_num=8)
     # criterion = nn.BCEWithLogitsLoss()  # 交叉熵损失函数，常用于多分类任务
     criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数，常用于多分类任务
     # model = EcgGCNResNetModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes,
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     #                        batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(args.device)
     # model = resnet34(input_channels=12, num_classes=args.num_classes).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 20, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.5)
 
     total_params = 0
     for name, parameter in model.named_parameters():

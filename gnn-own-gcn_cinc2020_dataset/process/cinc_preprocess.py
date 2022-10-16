@@ -73,7 +73,7 @@ def gen_label_cinc_csv(label_csv):
                 labels[classes.index(abbreviation)] = 1
                 # break
             if 1 in labels:
-                if nsr_count > 5000 and classes[np.argmax(labels)] == 'NSR':
+                if nsr_count > 10000 and classes[np.argmax(labels)] == 'NSR':
                     continue
                 if classes[np.argmax(labels)] == 'NSR':
                     nsr_count += 1
@@ -150,9 +150,12 @@ def over_sample():
     gen_ecg_id = 1
     gen_labels = []
     gen_dic = {
-        'CRBBB': 2000,
+        'IAVB': 2000,
+        'CRBBB': 2500,
         'PVC': 2500,
-        'TInv': 1500,
+        'SB': 2500,
+        'STach': 2500,
+        'TInv': 3500,
     }
     for key in gen_dic.keys():
         gen_cout = 0
@@ -160,13 +163,6 @@ def over_sample():
         X_list = []
         Y_list = []
         for i, row in tqdm(ecg_lables.iterrows()):
-            # if i >= 1000:
-            #     break
-            # lables = row[tar_class].to_numpy(dtype=np.int32)
-            # if 1 not in lables:
-            #     continue
-            # else:
-            #     y = int(np.argmax(lables))
             if nsr_count >= (gen_dic[key] + 10) and gen_cout >= 10:
                 break
             if nsr_count >= (gen_dic[key] + 10) and (row['NSR'] == 1 or row['NSR'] == '1'):
@@ -212,7 +208,7 @@ def over_sample():
                                      ecg_id + '.csv')
             df.to_csv(file_name, header=False, index=False)
             gen_ecg_id += 1
-            label = [0] * 9
+            label = [0] * len(classes)
             label[y_res[idx]] = 1
             gen_labels.append([ecg_id] + label)
 
@@ -295,8 +291,8 @@ def process_mat_E():
 if __name__ == '__main__':
     # label_csv = os.path.join(processed_path, 'labels.csv')
     # gen_label_csv(label_csv)
-    # over_sample()
-    label_csv = os.path.join(processed_path, 'labels_cinc.csv')
+    over_sample()
+    label_csv = os.path.join(processed_path, 'labels_cinc_new.csv')
     gen_label_cinc_csv(label_csv)
     # statistic_sub_class()
     # process_mat_E()
