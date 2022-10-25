@@ -2,13 +2,9 @@ import os
 
 import numpy as np
 import torch
-from sklearn import metrics
-from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_score, recall_score, roc_curve
-from sklearn.preprocessing import label_binarize
 from tqdm import tqdm
 
-from utils.evaluate_12ECG_score import evaluate_12ECG_score
-from utils.evaluate_utils import cal_f1s, cal_aucs, get_thresholds, apply_thresholds, test_evaluate
+from utils.evaluate_utils import cal_f1s, cal_aucs, get_thresholds, apply_thresholds
 
 
 def train(loader, criterion, args, model, epoch, scheduler, optimizer):

@@ -9,6 +9,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from data_loader.cinc2020_dataset import ECGCincDataset
+from data_loader.muse_dataset import ECGMuseDataset
 from models.focal_loss import FocalLoss
 from models.gcn_gru import EcgGCNGRUModel
 from models.gcn_resnet import EcgGCNResNetModel
@@ -21,12 +22,12 @@ from utils.utils import split_data, performance, drawing_confusion_matric, drawi
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--leads', type=int, default=12)
-parser.add_argument('--num_classes', type=int, default=8)
+parser.add_argument('--num_classes', type=int, default=4)
 parser.add_argument('--epoch', type=int, default=100)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--device', type=str, default='cuda')
-parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--decay_rate', type=float, default=1e-5)
+parser.add_argument('--batch_size', type=int, default=32)
+parser.add_argument('--decay_rate', type=float, default=1e-3)
 parser.add_argument('--seq_len', type=int, default=1000)
 parser.add_argument('--step_len', type=int, default=100)
 parser.add_argument('--gru_num_layers', type=int, default=2)
@@ -45,17 +46,17 @@ def loadData(args, epoch):
     org_data_dir = os.path.join(dataset_path)  # 源数据目录
     processed_data_dir = os.path.join(processed_path)  # 处理后的数据目录
 
-    label_csv = os.path.join(processed_data_dir, 'labels_cinc.csv')
+    label_csv = os.path.join(dataset_path, 'labels.csv')
     train_folds, val_folds, test_folds = split_data(seed=0)
 
-    train_dataset = ECGCincDataset('train', org_data_dir, label_csv, train_folds, seq_len=args.seq_len)
+    train_dataset = ECGMuseDataset('train', org_data_dir, label_csv, train_folds, seq_len=args.seq_len)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
                               pin_memory=False, drop_last=True)
-    val_dataset = ECGCincDataset('val', org_data_dir, label_csv, val_folds, seq_len=args.seq_len)
+    val_dataset = ECGMuseDataset('val', org_data_dir, label_csv, val_folds, seq_len=args.seq_len)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers,
                             pin_memory=False, drop_last=True)
 
-    test_dataset = ECGCincDataset('test', org_data_dir, label_csv, test_folds, seq_len=args.seq_len)
+    test_dataset = ECGMuseDataset('test', org_data_dir, label_csv, test_folds, seq_len=args.seq_len)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers,
                              pin_memory=False, drop_last=True)
     return train_loader, val_loader, test_loader
@@ -68,19 +69,19 @@ if __name__ == '__main__':
     # criterion = FocalLoss(gamma=5, class_num=8)
     # criterion = nn.BCEWithLogitsLoss()  # 交叉熵损失函数，常用于多分类任务
     criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数，常用于多分类任务
-    # model = EcgGCNResNetModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes,
-    #                           leads=args.leads,
-    #                           batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(
-    #     args.device)
-    model = EcgGCNGRUModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes, leads=args.leads,
-                           batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(
+    model = EcgGCNResNetModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes,
+                              leads=args.leads,
+                              batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(
         args.device)
+    # model = EcgGCNGRUModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes, leads=args.leads,
+    #                        batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(
+    #     args.device)
     # model = EcgGCNTCNModel(seq_len=args.seq_len, step_len=args.step_len, num_classes=args.num_classes, leads=args.leads,
     #                        batch_size=args.batch_size, gru_num_layers=args.gru_num_layers, device=args.device).to(args.device)
     # model = resnet34(input_channels=12, num_classes=args.num_classes).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 15, gamma=0.1)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.8**epoch)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 20, gamma=0.1)
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.8**epoch)
 
     total_params = 0
     for name, parameter in model.named_parameters():
