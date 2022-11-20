@@ -5,51 +5,50 @@ from matplotlib import pyplot as plt
 from torch import nn
 import torch.nn.functional as f
 
+
+import torch
+import numpy as np
+import math
+import torch.nn.functional as F
+
+
 from models.gcn import GraphConvolution
 from models.resnet34 import ResNet1d, BasicBlock1d
 
 
-class CnnFeatures(nn.Module):
-    def __init__(self):
-        super(CnnFeatures, self).__init__()
-        cnn = []
-        # 7x1  --  7x64
-        # in_channels 输入信号的通道，即1维向量
-        # out_channels 卷积输出信号通道
-        # kernel_size 卷积核大小 kernel_size * in_channels
-        # stride 步长
-        # padding 填充
-        cnn.append(nn.Conv1d(in_channels=1, out_channels=64, kernel_size=2, stride=1,
-                             padding=1))  # 输入通道为1，即1维向量，卷积核大小为kernel_size *in_channels
-        cnn.append(nn.ReLU())  # ReLu激活函数：一部分神经元输出为0，增加输出的矩阵稀疏性，使得在训练时更容易发现其中的规律
-        cnn.append(nn.BatchNorm1d(64))  # 保持输入数据的均值和方差恒定，使后面网络不用不停调参来适应输入变化，实现网络各层解耦
-        cnn.append(nn.Dropout(0.3))  #
-        cnn.append(nn.Conv1d(in_channels=64, out_channels=64, kernel_size=2, stride=1, padding=1))
-        cnn.append(nn.ReLU())
-        cnn.append(nn.BatchNorm1d(64))
-        self.cnn = nn.Sequential(*cnn)
-
-        self.cnn_l = nn.Sequential(
-            nn.Linear(5 * 64, 64),
-            nn.LeakyReLU(),
-            nn.BatchNorm1d(64),
-            nn.Dropout(p=0.5),
-            nn.Linear(64, 5)
-        )
-
-    def forward(self, x):
-        x = x.unsqueeze(1)
-        x = self.cnn(x)
-        x = x.view(x.size(0), -1)
-        return self.cnn_l(x)
-
-
-import torch
-import numpy as np
-import torch.nn as nn
-import math
-import torch.nn.functional as F
-
+# class CnnFeatures(nn.Module):
+#     def __init__(self):
+#         super(CnnFeatures, self).__init__()
+#         cnn = []
+#         # 7x1  --  7x64
+#         # in_channels 输入信号的通道，即1维向量
+#         # out_channels 卷积输出信号通道
+#         # kernel_size 卷积核大小 kernel_size * in_channels
+#         # stride 步长
+#         # padding 填充
+#         cnn.append(nn.Conv1d(in_channels=1, out_channels=64, kernel_size=2, stride=1,
+#                              padding=1))  # 输入通道为1，即1维向量，卷积核大小为kernel_size *in_channels
+#         cnn.append(nn.ReLU())  # ReLu激活函数：一部分神经元输出为0，增加输出的矩阵稀疏性，使得在训练时更容易发现其中的规律
+#         cnn.append(nn.BatchNorm1d(64))  # 保持输入数据的均值和方差恒定，使后面网络不用不停调参来适应输入变化，实现网络各层解耦
+#         cnn.append(nn.Dropout(0.3))  #
+#         cnn.append(nn.Conv1d(in_channels=64, out_channels=64, kernel_size=2, stride=1, padding=1))
+#         cnn.append(nn.ReLU())
+#         cnn.append(nn.BatchNorm1d(64))
+#         self.cnn = nn.Sequential(*cnn)
+#
+#         self.cnn_l = nn.Sequential(
+#             nn.Linear(5 * 64, 64),
+#             nn.LeakyReLU(),
+#             nn.BatchNorm1d(64),
+#             nn.Dropout(p=0.5),
+#             nn.Linear(64, 5)
+#         )
+#
+#     def forward(self, x):
+#         x = x.unsqueeze(1)
+#         x = self.cnn(x)
+#         x = x.view(x.size(0), -1)
+#         return self.cnn_l(x)
 
 #
 class LayerNorm(nn.Module):
@@ -216,6 +215,58 @@ class GraphLearning(nn.Module):
 #         normalized_laplacian = torch.matmul(torch.matmul(d_mat_inv_sqrt, matrix), d_mat_inv_sqrt)  # D^0.5·A·D^0.5
 #         return normalized_laplacian
 
+# 1维残差网络
+class ResNetFeatures(nn.Module):
+    def __init__(self, block, layers, seq_len, input_channels=1, inplanes=64, num_classes=5):
+        super(ResNetFeatures, self).__init__()
+        self.inplanes = inplanes
+        self.seq_len = seq_len
+        self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=1, padding=1)
+        self.layer1 = self._make_layer(BasicBlock1d, 64, layers[0])
+        self.layer2 = self._make_layer(BasicBlock1d, 128, layers[1], stride=1)
+        self.layer3 = self._make_layer(BasicBlock1d, 128, layers[2], stride=1)
+        self.layer4 = self._make_layer(BasicBlock1d, 64, layers[3], stride=1)
+        # self.adaptiveavgpool = nn.AdaptiveAvgPool1d(int(seq_len / 2))
+        # self.adaptivemaxpool = nn.AdaptiveMaxPool1d(int(seq_len / 2))
+        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
+        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
+        # self.fc = nn.Linear(512 * block.expansion * 2, num_classes)
+        self.dropout = nn.Dropout(0.2)
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv1d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm1d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = torch.unsqueeze(x, 1)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x1 = self.adaptiveavgpool(x)
+        x2 = self.adaptivemaxpool(x)
+        x = torch.cat((x1, x2), dim=2)
+        x = x.view(x.size()[0], -1)
+        return x
+
 
 class StockBlockLayer(nn.Module):
     def __init__(self, seq_len, step_len, leads, batch_size, gru_num_layers):
@@ -261,14 +312,15 @@ class StockBlockLayer(nn.Module):
         real_gru, hidden_real = self.gru(ffted_real, hidden_real)
         imag_gru, hidden_imag = self.gru(ffted_imag, hidden_imag)
         iffted = torch.fft.ifft2(torch.complex(real_gru, imag_gru), dim=(-2, -1))
-        iffted_abs_norm = torch.abs(iffted) / self.step_len
+        iffted_abs_norm = torch.abs(iffted)
+        # iffted_abs_norm = torch.abs(iffted) / self.step_len
         # 残差
         # res_out = self.resnet(gcn_out)
         # gru_res_out = res_out + iffted_abs_norm
-        gcn_out = self.gcn(iffted_abs_norm, adj)
+        # gcn_out = self.gcn(iffted_abs_norm, adj)
         # gcn_out = self.gcn(iffted_abs_norm, adj)
         # gru_out, hidden = self.gru(gcn_out, hidden_real, hidden_imag )
-        block_out = self.block_out(gcn_out)
+        block_out = self.block_out(iffted_abs_norm)
         return block_out, hidden_real, hidden_imag
 
     def drawing(self, ecg_data):
@@ -295,17 +347,17 @@ class EcgGCNGRUModel(torch.nn.Module):
         self.stock_block = StockBlockLayer(seq_len=seq_len, leads=leads, step_len=step_len, batch_size=batch_size,
                                            gru_num_layers=gru_num_layers)
         self.attention = SelfAttention(num_attention_heads=2, input_size=seq_len, hidden_size=seq_len)
-        self.resnet = ResNet1d(BasicBlock1d, [3, 4, 6, 3], seq_len=seq_len)
-        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
-        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
+        self.resnet = ResNetFeatures(BasicBlock1d, [3, 4, 6, 3], seq_len=seq_len)
+        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(4)
+        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(4)
         self.fc = nn.Sequential(
-            nn.Linear(12 * 4, 64),  # 将这里改成64试试看
+            nn.Linear(224, 512),  # 将这里改成64试试看
             nn.LeakyReLU(),
             nn.Dropout(p=dropout_rate),
-            nn.Linear(64, 64),  # 将这里改成64试试看
+            nn.Linear(512, 512),  # 将这里改成64试试看
             nn.LeakyReLU(),
             nn.Dropout(p=dropout_rate),
-            nn.Linear(64, self.num_classes),
+            nn.Linear(512, self.num_classes),
         )
 
     def forward(self, x, features=None):
@@ -315,7 +367,7 @@ class EcgGCNGRUModel(torch.nn.Module):
         hidden_real, hidden_imag = torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
             self.device), torch.zeros(self.gru_num_layers, self.batch, self.step_len).to(
             self.device)  # (D∗num_layers,N,Hout)（是否双向乘以层数，batch size大小，输出维度大小）
-        res_out = self.resnet(x)
+        res_out = self.resnet(features)
         mul_L = self.graph_learning(x)
         for i in range(n_step):
             start_time = i * self.step_len
@@ -324,13 +376,13 @@ class EcgGCNGRUModel(torch.nn.Module):
             # part 1:
             # mul_L = self.graph_learning(xx)
             res1, hidden_real, hidden_imag = self.stock_block(xx, mul_L, hidden_real, hidden_imag)  # res:(batch,leads, seq_len)
-            # res2, hidden_real, hidden_imag = self.stock_block(res1, mul_L, hidden_real, hidden_imag)  # res:(batch, leads, seq_len)
+            res2, hidden_real, hidden_imag = self.stock_block(res1, mul_L, hidden_real, hidden_imag)  # res:(batch, leads, seq_len)
             # res3, hidden_real, hidden_imag = self.stock_block(res2, mul_L, hidden_real, hidden_imag)  # res:(batch, leads, seq_len)
-            res = torch.cat((res, res1 + xx), dim=-1)
+            res = torch.cat((res, res2 + xx), dim=-1)
         x1 = self.adaptivemaxpool(res)
         x2 = self.adaptiveavgpool(res)
         res = torch.cat((x1, x2), dim=2)
-        res = torch.cat((res, res_out), dim=2)
         res = res.view(res.size(0), -1)  # res:(batch,leads*seq_len)
+        res = torch.cat((res, res_out), dim=1)
         res = self.fc(res)
         return res

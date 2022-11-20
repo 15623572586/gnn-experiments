@@ -1,17 +1,10 @@
 import os
 
 import torch
-from matplotlib import pyplot as plt
-from scipy.signal import medfilt
 from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
 import wfdb
-import wfdb.processing
-
-from process.cinc_preprocess import classes
-from process.muse_preprocess import feature_columns
-from process.variables import features_path, dataset_path
 
 
 def scaling(X, sigma=0.1):
@@ -36,49 +29,49 @@ def transform(sig, train=False):
     return sig
 
 
-class ECGMuseDataset(Dataset):
-    def __init__(self, phase, data_dir, label_csv, folds, seq_len):
-        super(ECGMuseDataset, self).__init__()
+class ECGCpscDataset(Dataset):
+    def __init__(self, phase, data_dir, label_csv, folds, leads, seq_len):
+        super(ECGCpscDataset, self).__init__()
         self.phase = phase
         df = pd.read_csv(label_csv)
         df = df[df['fold'].isin(folds)]
         self.data_dir = data_dir
-        self.features_dir = features_path
         self.labels = df
         self.leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
         self.seq_len = seq_len
-        self.n_leads = len(self.leads)
-        self.classes = classes
-        # self.classes = ['NORM', 'MI', 'STTC', 'CD', 'HYP']
-        # self.features = ['age', 'sex', 'weight']
+        if leads == 'all':
+            self.use_leads = np.where(np.in1d(self.leads, self.leads))[0]
+        else:
+            self.use_leads = np.where(np.in1d(self.leads, leads))[0]
+        self.nleads = len(self.use_leads)
+        self.classes = ['SNR', 'AF', 'IAVB', 'LBBB', 'RBBB', 'PAC', 'PVC', 'STD', 'STE']
         self.n_classes = len(self.classes)
         self.data_dict = {}
         self.label_dict = {}
 
     def __getitem__(self, index: int):
         row = self.labels.iloc[index]
-        file_name = row['file_name']
-        filename = str(file_name) + '.csv'
-        record_path = os.path.join(self.data_dir, filename)
-        ecg_data_csv = pd.read_csv(record_path, header=None)
-        ecg_data = np.array(ecg_data_csv)
-        ecg_data = np.nan_to_num(ecg_data)  # 有些样本导联缺失（某个导联数据全为零），与处理过后，就会变成nan
-
-        # ecg_data = transform(ecg_data, self.phase == 'train')
+        patient_id = row['patient_id']
+        # ecg_data = np.loadtxt(os.path.join(self.data_dir, patient_id+'.csv'), delimiter=',')
+        ecg_data, _ = wfdb.rdsamp(os.path.join(self.data_dir, patient_id))
+        ecg_data = transform(ecg_data, self.phase == 'train')
+        # result = ecg_data[-self.seq_len:, :]
         nsteps, _ = ecg_data.shape
-        ecg_data = ecg_data[-self.seq_len:, -self.n_leads:]
-        result = np.zeros((self.seq_len, self.n_leads))
+        ecg_data = ecg_data[-self.seq_len:, self.use_leads]
+        result = np.zeros((self.seq_len, self.nleads))  # 30 s, 500 Hz
         result[-nsteps:, :] = ecg_data
-        label = row['class']
+        if self.label_dict.get(patient_id):
+            labels = self.label_dict.get(patient_id)
+        else:
+            labels = row[self.classes].to_numpy(dtype=np.float32)
+            self.label_dict[patient_id] = labels
         # z_score归一化
         data_mean = np.mean(result, axis=0)
         data_std = np.std(result, axis=0)
         data_std = [1 if i == 0 else i for i in data_std]
         result = (result - data_mean) / data_std
-        # ecg_特征
-        features = row[feature_columns]
-        x, y, features = torch.from_numpy(result.transpose()).float(), torch.tensor(label), torch.tensor(features, dtype=torch.float)  # ecg数据
-        return x, y, features
+
+        return torch.from_numpy(result.transpose()).float(), torch.from_numpy(labels).float()
 
     def __len__(self):
         return len(self.labels)
