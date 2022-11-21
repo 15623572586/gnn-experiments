@@ -26,7 +26,7 @@ class_dic = {
     'SR': 'SR',
     'SA': 'SR',  # SI
     'AFIB': 'AFIB',
-    'AF': 'AFIB',
+    # 'AF': 'AFIB',
     'SVT': 'GSVT',
     'AT': 'GSVT',
     # 'SAAWR': 'GSVT',
@@ -61,7 +61,6 @@ def resample_data():
 # 数据集中有全0的数据，清理一下
 def clear_data():
     diagnostics_xlsx = pd.read_excel(io=r"E:\01_科研\dataset\MUSE\Diagnostics.xlsx", sheet_name=0)
-    diagnostics_xlsx
     for i, row in tqdm(diagnostics_xlsx.iterrows()):
         file_name = row['FileName']
         df_data = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', file_name), header=None)
@@ -89,7 +88,7 @@ def harmonize_data(features):
 def gen_label_muse_csv(label_csv):
     df = pd.read_excel(os.path.join(r'E:\01_科研\dataset\MUSE\Diagnostics.xlsx'), sheet_name=0)
     features = harmonize_data(df[feature_columns])
-    print(features)
+    # print(features)
     results = []
     for i, row in tqdm(df.iterrows()):
         file_name = row['FileName']

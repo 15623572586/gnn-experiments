@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 
 
-down_lr = [10, 50, 100, 150, 200]
+down_lr = [10, 100, 200, 300, 400]
 
 
 def train(loader, criterion, args, model, epoch, scheduler, optimizer, count, down_lr_idx=None):
