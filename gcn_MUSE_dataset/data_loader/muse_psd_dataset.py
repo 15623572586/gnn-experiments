@@ -85,7 +85,7 @@ class ECGPsdMuseDataset(Dataset):
             ecg_data = np.nan_to_num(ecg_data)  # 有些样本导联缺失（某个导联数据全为零），与处理过后，就会变成nan
 
         # 数据重组 将四个波段的数据分裂
-        new_ecg_data = np.zeros([12, 4, 120])
+        new_ecg_data = np.zeros([12, 4, self.features])
         for i in range(12):
             new_ecg_data[i] = np.array_split(ecg_data[i], 4)
         # ecg_data = normalization(new_ecg_data)

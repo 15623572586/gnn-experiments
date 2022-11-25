@@ -1,15 +1,12 @@
 import math
 
-import torch
-from matplotlib import pyplot as plt
 from torch import nn
 
 import torch
-import numpy as np
 
 
 class GraphLearning(nn.Module):
-    def __init__(self, channel=12, width=120):
+    def __init__(self, channel=12, width=256):
         super(GraphLearning, self).__init__()
         self.channel = channel
         self.width = width
@@ -38,18 +35,7 @@ class GraphLearning(nn.Module):
         laplacian = torch.matmul(diagonal_degree_hat,
                                  torch.matmul(degree_l - adj, diagonal_degree_hat))
         return self.cheb_polynomial(laplacian)
-        # return adj
-        # return self.calculate_laplacian(adj).unsqueeze(1)
 
-    # def calculate_laplacian(self, matrix):
-    #     # matrix = matrix + torch.eye(matrix.size(0))
-    #     row_sum = matrix.sum(1)  # 度
-    #     d_inv_sqrt = torch.pow(row_sum, -0.5).flatten()  # 度开根号 (batch*leads, 1)
-    #     # d_inv_sqrt = d_inv_sqrt.view(self.batch, self.leads)  # (batch, leads)
-    #     d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0
-    #     d_mat_inv_sqrt = torch.diag_embed(d_inv_sqrt)  # 开根号后的度矩阵  (batch, leads, leads)
-    #     normalized_laplacian = torch.matmul(torch.matmul(d_mat_inv_sqrt, matrix), d_mat_inv_sqrt)  # D^0.5·A·D^0.5
-    #     return normalized_laplacian
 
     def cheb_polynomial(self, laplacian):
         """
@@ -113,6 +99,7 @@ class EcgGCNModel(torch.nn.Module):
         self.batch = batch_size
         self.device = device
         self.gcn_layer_num = gcn_layer_num
+        self.gru = nn.GRU(input_size=features, hidden_size=features, num_layers=1, batch_first=True)
         self.graph_learning = GraphLearning(channel=leads, width=features)
         self.conv1 = nn.Conv2d(in_channels=4, out_channels=1, kernel_size=1, stride=1, padding=0)
         self.gcn_layers = nn.Sequential()
@@ -123,12 +110,9 @@ class EcgGCNModel(torch.nn.Module):
                 self.gcn_layers.append(GraphConvolution(features, features, 0.2))
             else:
                 self.gcn_layers.append(GraphConvolution(features, features, 0.2))
-        # self.gc1 = GraphConvolution(features, 256, 0.2)
-        # self.gc2 = GraphConvolution(256, 256, 0.2)
-        # self.gc3 = GraphConvolution(256, 256, 0.2)
         self.relu = nn.ReLU()
-        # self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
-        # self.adaptivemaxpool = nn.AdaptiveMaxPool1d(4)
+        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
+        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
         self.fc = nn.Sequential(
             nn.Linear(features * 12, 512),  # 将这里改成64试试看
             nn.LeakyReLU(),
@@ -142,13 +126,24 @@ class EcgGCNModel(torch.nn.Module):
         )
 
     def forward(self, x):
+        batch, c, w, n = x.shape
+        gru_out = torch.FloatTensor().to(self.device)
+        for i in range(w):
+            out, hidden = self.gru(x[:, :, i, :])
+            out = out.unsqueeze(2)
+            gru_out = torch.cat((gru_out, out), dim=2)
+        x = gru_out
         adj = self.graph_learning(x)
         x = x.permute(0, 2, 1, 3).unsqueeze(2)  # (b, 4, 1, 12, features)
         input = x
         for i in range(self.gcn_layer_num):
             x = self.relu(self.gcn_layers[i](x, adj))
             x = x + input  # 残差连接，防止训练一段时间后梯度爆炸，导致loss is nan
-        x = x.squeeze().sum(1)
+        x = x.squeeze()
+        x1 = self.adaptiveavgpool(x.permute(0, 3, 2, 1))
+        x2 = self.adaptivemaxpool(x.permute(0, 3, 2, 1))
+        x = x1 + x2
+        # x = x.sum(1)
         x = x.reshape(x.size(0), -1)  # res:(batch,leads*4)
         x = self.fc(x)
         return x

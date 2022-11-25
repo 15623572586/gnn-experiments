@@ -215,6 +215,7 @@ freq_names = ['all', 'P', 'QRS', 'T']
 
 # 使用scipy工具计算psd
 def gen_psd(taget_dir, fs):
+    features = 256
     df = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\labels.csv'))
     # Define sampling frequency and time vector
     win = 4 * fs  # Define window length (4 seconds)
@@ -223,14 +224,14 @@ def gen_psd(taget_dir, fs):
         df_data = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', file_name), header=None)
         ecg_data = df_data.values.T
         # f_values, psd = welch(x=ecg_data, fs=fs, nperseg=2048, return_onesided=True)
-        all_psds = np.zeros([12, 480])
+        all_psds = np.zeros([12, features*4])
         for j, x in enumerate(ecg_data):
             # 小波包分解个频段信号+重构各频段信号
             new_x = TimeFrequencyWP(x, fs=fs, wavelet='db8', maxlevel=9)
-            lead_psds = np.zeros([4 * 120])
+            lead_psds = np.zeros([4 * features])
             for k, name in enumerate(freq_names):
                 freqs, psd = welch(new_x[name], fs=fs, nperseg=win)
-                lead_psds[k * 120:(k + 1) * 120] = psd[:120]
+                lead_psds[k * features:(k + 1) * features] = psd[:features]
             all_psds[j] = lead_psds
         all_psds = DataFrame(all_psds.T)
         all_psds.to_csv(os.path.join(taget_dir, file_name), header=False, index=False)
@@ -238,8 +239,8 @@ def gen_psd(taget_dir, fs):
 
 
 if __name__ == '__main__':
-    label_csv = os.path.join(r'E:\01_科研\dataset\MUSE', 'labels.csv')
-    gen_label_muse_csv(label_csv)
+    # label_csv = os.path.join(r'E:\01_科研\dataset\MUSE', 'labels.csv')
+    # gen_label_muse_csv(label_csv)
     # resample_data()
-    # gen_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD_welch', fs=500)  # 准确率93
+    gen_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD', fs=500)  # 准确率93
     # gen_de_and_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD', r"E:\01_科研\dataset\MUSE\ECGDataDenoised_DE", fs=500)

@@ -7,7 +7,7 @@ import os
 # features_path = os.path.join(processed_path, 'features')
 
 dataset_path = r'E:\01_科研\dataset\MUSE'
-org_data = os.path.join(dataset_path, 'ECGDataDenoised_PSD_welch')
+org_data = os.path.join(dataset_path, 'ECGDataDenoised_PSD')
 processed_data = os.path.join(dataset_path, 'ECGDataDenoised100')
 
 
