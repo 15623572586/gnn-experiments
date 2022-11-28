@@ -36,7 +36,6 @@ class GraphLearning(nn.Module):
                                  torch.matmul(degree_l - adj, diagonal_degree_hat))
         return self.cheb_polynomial(laplacian)
 
-
     def cheb_polynomial(self, laplacian):
         """
         Compute the Chebyshev Polynomial, according to the graph laplacian.
@@ -89,6 +88,29 @@ class GraphConvolution(nn.Module):
                + str(self.out_features) + ')'
 
 
+# 位置编码
+# class LearnableAbsolutePositionEmbedding(nn.Module):
+#     def __init__(self, max_position_embeddings, hidden_size):
+#         super().__init__()
+#         self.is_absolute = True
+#         self.embeddings = nn.Embedding(max_position_embeddings, hidden_size)
+#         self.register_buffer('position_ids', torch.arange(max_position_embeddings))
+#
+#     def forward(self, x):
+#         """
+#         return (b l d) / (b h l d)
+#         """
+#         position_ids = self.position_ids[:x.size(-2)]
+#         if x.dim() == 3:
+#             return x + self.embeddings(position_ids)[None, :, :]
+#         elif x.dim() == 4:
+#             h = x.size(1)
+#             # x = rearrange(x, 'b h l d -> b l (h d)')
+#             x = x + self.embeddings(position_ids)[None, :, :]
+#             # x = rearrange(x, 'b l (h d) -> b h l d', h=h)
+#             return x
+
+
 class EcgGCNModel(torch.nn.Module):
     def __init__(self, features, num_classes=4, batch_size=32, leads=12, dropout_rate=0.2, device='cuda',
                  gcn_layer_num=2):
@@ -99,6 +121,7 @@ class EcgGCNModel(torch.nn.Module):
         self.batch = batch_size
         self.device = device
         self.gcn_layer_num = gcn_layer_num
+        # self.pos_encoding = LearnableAbsolutePositionEmbedding(4, features)
         self.gru = nn.GRU(input_size=features, hidden_size=features, num_layers=1, batch_first=True)
         self.graph_learning = GraphLearning(channel=leads, width=features)
         self.conv1 = nn.Conv2d(in_channels=4, out_channels=1, kernel_size=1, stride=1, padding=0)
@@ -106,13 +129,13 @@ class EcgGCNModel(torch.nn.Module):
         for i in range(gcn_layer_num):
             if i == 0:
                 self.gcn_layers.append(GraphConvolution(features, features, 0.2))
-            elif i < gcn_layer_num-1:
+            elif i < gcn_layer_num - 1:
                 self.gcn_layers.append(GraphConvolution(features, features, 0.2))
             else:
                 self.gcn_layers.append(GraphConvolution(features, features, 0.2))
         self.relu = nn.ReLU()
-        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
-        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
+        # self.adaptiveavgpool = nn.AdaptiveAvgPool2d(1)
+        # self.adaptivemaxpool = nn.AdaptiveMaxPool2d(1)
         self.fc = nn.Sequential(
             nn.Linear(features * 12, 512),  # 将这里改成64试试看
             nn.LeakyReLU(),
@@ -133,17 +156,19 @@ class EcgGCNModel(torch.nn.Module):
             out = out.unsqueeze(2)
             gru_out = torch.cat((gru_out, out), dim=2)
         x = gru_out
+        # x = self.pos_encoding(x)
         adj = self.graph_learning(x)
         x = x.permute(0, 2, 1, 3).unsqueeze(2)  # (b, 4, 1, 12, features)
         input = x
         for i in range(self.gcn_layer_num):
             x = self.relu(self.gcn_layers[i](x, adj))
             x = x + input  # 残差连接，防止训练一段时间后梯度爆炸，导致loss is nan
+            input = x
         x = x.squeeze()
-        x1 = self.adaptiveavgpool(x.permute(0, 3, 2, 1))
-        x2 = self.adaptivemaxpool(x.permute(0, 3, 2, 1))
-        x = x1 + x2
-        # x = x.sum(1)
+        # x1 = self.adaptiveavgpool(x.permute(0, 3, 2, 1))
+        # x2 = self.adaptivemaxpool(x.permute(0, 3, 2, 1))
+        # x = x1 + x2
+        x = x.sum(1)
         x = x.reshape(x.size(0), -1)  # res:(batch,leads*4)
         x = self.fc(x)
         return x

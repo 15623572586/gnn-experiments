@@ -115,10 +115,10 @@ def gen_label_muse_csv(label_csv):
 
 # 需要分析的4个频段
 iter_freqs = [
-    {'name': 'P', 'fmin': 0.5, 'fmax': 20},
-    {'name': 'QRS', 'fmin': 0.5, 'fmax': 38},
-    {'name': 'T', 'fmin': 0.5, 'fmax': 8},
-    {'name': 'all', 'fmin': 0.5, 'fmax': 40},
+    {'name': 'P', 'fmin': 0, 'fmax': 20},
+    {'name': 'QRS', 'fmin': 0, 'fmax': 38},
+    {'name': 'T', 'fmin': 0, 'fmax': 8},
+    {'name': 'all', 'fmin': 0, 'fmax': 40},
 ]
 
 
@@ -213,7 +213,7 @@ def TimeFrequencyWP(data, fs, wavelet, maxlevel=8):
 freq_names = ['all', 'P', 'QRS', 'T']
 
 
-# 使用scipy工具计算psd
+# 使用小波包分解+scipy工具计算psd
 def gen_psd(taget_dir, fs):
     features = 256
     df = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\labels.csv'))
@@ -237,10 +237,34 @@ def gen_psd(taget_dir, fs):
         all_psds.to_csv(os.path.join(taget_dir, file_name), header=False, index=False)
     print('finished!')
 
+def get_welch_psd(taget_dir, fs):
+    df = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\labels.csv'))
+    win = 4 * fs  # Define window length (4 seconds)
+    features = int(win / fs * 40)
+    for i, row in tqdm(df.iterrows()):
+        file_name = row['file_name'] + '.csv'
+        df_data = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', file_name), header=None)
+        ecg_data = df_data.values.T
+        # f_values, psd = welch(x=ecg_data, fs=fs, nperseg=2048, return_onesided=True)
+        all_psds = np.zeros([12, features*4])
+        for j, x in enumerate(ecg_data):
+            lead_psds = np.zeros([4 * features])
+            for k, name in enumerate(freq_names):
+                freqs, psd = welch(x, fs=fs, nperseg=win)
+                # lead_psds[k * features:(k + 1) * features] = np.zeros([features])
+                fmin_idx = iter_freqs[k]['fmin'] * int(win / fs)
+                fmax_idx = iter_freqs[k]['fmax'] * int(win / fs)
+                # np.pad(array1, (0, 6 - len(array1)), 'constant', constant_values=(0, 0))
+                lead_psds[k * features:(k + 1) * features] = np.pad(psd[fmin_idx:fmax_idx], (0, features-fmax_idx))
+            all_psds[j] = lead_psds
+        all_psds = DataFrame(all_psds.T)
+        all_psds.to_csv(os.path.join(taget_dir, file_name), header=False, index=False)
+    print('finished!')
+
 
 if __name__ == '__main__':
     # label_csv = os.path.join(r'E:\01_科研\dataset\MUSE', 'labels.csv')
     # gen_label_muse_csv(label_csv)
     # resample_data()
-    gen_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD', fs=500)  # 准确率93
+    get_welch_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD_200', fs=500)
     # gen_de_and_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD', r"E:\01_科研\dataset\MUSE\ECGDataDenoised_DE", fs=500)

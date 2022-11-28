@@ -16,10 +16,12 @@ from process.variables import dataset_path
 n_class = len(super_classes)
 
 
-def split_data(seed=42):
+def split_data(seed=42, k_fold=10):
     folds = range(1, 11)  # 不包含11
     folds = np.random.RandomState(seed).permutation(folds)  # 根据seec随机排序
-    return folds[:9], folds[8:9], folds[9:]
+    tran_folds = [k for k in folds if k != k_fold]
+    test_folds = [k for k in folds if k == k_fold]
+    return tran_folds, folds[8:9], test_folds
 
 
 def confusion_matrix(y_preds, y_trues):

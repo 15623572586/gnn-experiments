@@ -5,15 +5,15 @@ import pandas as pd
 import pywt
 import torch
 import numpy as np
-from scipy.signal import welch
+from scipy.signal import welch, stft
 from torch.fft import fft, rfft
 import seaborn as sns
 
 sns.set(font_scale=1.2)
 
 # data_dir = os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', 'MUSE_20180113_171327_27000.csv')  # AFIB
-# data_dir = os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', 'MUSE_20180209_172046_21000.csv')  # SR
-data_dir = os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', 'MUSE_20180112_073319_29000.csv')  # SB
+data_dir = os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', 'MUSE_20180209_172046_21000.csv')  # SR
+# data_dir = os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', 'MUSE_20180112_073319_29000.csv')  # SB
 
 fs = 500
 len_sample = 500 * 10
@@ -96,47 +96,72 @@ def get_psd_values(x, f_s):
 
 # 需要分析的3个频段
 iter_freqs = [
-    {'name': 'P', 'fmin': 0.5, 'fmax': 20},
-    {'name': 'QRS', 'fmin': 0.5, 'fmax': 38},
-    {'name': 'T', 'fmin': 0.5, 'fmax': 8},
-    {'name': 'all', 'fmin': 0.5, 'fmax': 40},
+    {'name': 'P', 'fmin': 0., 'fmax': 20},
+    {'name': 'QRS', 'fmin': 0., 'fmax': 38},
+    {'name': 'T', 'fmin': 0., 'fmax': 8},
+    {'name': 'all', 'fmin': 0., 'fmax': 40},
 ]
+
+def get_welch_psd_values(x, fs=500):
+    f, psd = welch(x, fs, nperseg=2000)
+    return
+
+def get_stft_values(x, fs=500):
+    f, t, Zxx = stft(x, fs=fs)
+    sig = abs(Zxx)
+    plt.figure(figsize=(12, 6))
+    plt.plot(f, abs(sig))
+    plt.show()
+
 
 if __name__ == '__main__':
     df = pd.read_csv(data_dir, header=None)
     ecg_data = np.array(df.values)
-
-    # z_score归一化
-    # data_mean = np.mean(ecg_data, axis=0)
-    # data_std = np.std(ecg_data, axis=0)
-    # data_std = [1 if i == 0 else i for i in data_std]
-    # ecg_data = (ecg_data - data_mean) / data_std
     ecg_data = ecg_data.T
-    colors = ['darkorange', 'cornflowerblue', 'blueviolet', 'skyblue']
-    # Define delta lower and upper limits
-    low, high = 0.5, 8
-    # Find intersecting values in frequency vector
-    idx = 2
-    for i in range(2, 12):
-        freqs, psd = get_psd_values(ecg_data[i], fs)
-        idx_k = np.logical_and(freqs >= iter_freqs[idx]['fmin'], freqs <= iter_freqs[idx]['fmax'])
-        # idx_qrs = np.logical_and(freqs >= low, freqs <= high)
-        # idx_t = np.logical_and(freqs >= low, freqs <= high)
-        # idx_all = np.logical_and(freqs >= low, freqs <= high)
-        # plt.plot(psd[i][:100])
-        # Plot the power spectral density and fill the delta area
-        plt.figure(figsize=(20, 10))
-        plt.plot(freqs, psd, lw=2, color='k')
-        plt.fill_between(freqs, psd, where=idx_k, color=colors[idx])
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Power spectral density (uV^2 / Hz)')
-        plt.xlim([0, 60])
-        plt.ylim([0, psd.max() * 1.1])
-        plt.title("Welch's periodogram")
-        sns.despine()
-        break
+    # get_stft_values(ecg_data[0], 500)
+    plt.figure(figsize=(12, 6))
+    for i in range(12):
+        f, psd = welch(ecg_data[i], fs, nperseg=2000)
+
+        plt.plot(f[:200], psd[:200])
     plt.show()
 
-    # for i in range(12):
-    #     get_pywt(ecg_data[i])
-    #     break
+
+# if __name__ == '__main__':
+#     df = pd.read_csv(data_dir, header=None)
+#     ecg_data = np.array(df.values)
+#
+#     # z_score归一化
+#     # data_mean = np.mean(ecg_data, axis=0)
+#     # data_std = np.std(ecg_data, axis=0)
+#     # data_std = [1 if i == 0 else i for i in data_std]
+#     # ecg_data = (ecg_data - data_mean) / data_std
+#     ecg_data = ecg_data.T
+#     colors = ['darkorange', 'cornflowerblue', 'blueviolet', 'skyblue']
+#     # Define delta lower and upper limits
+#     low, high = 0.5, 8
+#     # Find intersecting values in frequency vector
+#     idx = 2
+#     for i in range(2, 12):
+#         freqs, psd = get_psd_values(ecg_data[i], fs)
+#         idx_k = np.logical_and(freqs >= iter_freqs[idx]['fmin'], freqs <= iter_freqs[idx]['fmax'])
+#         # idx_qrs = np.logical_and(freqs >= low, freqs <= high)
+#         # idx_t = np.logical_and(freqs >= low, freqs <= high)
+#         # idx_all = np.logical_and(freqs >= low, freqs <= high)
+#         # plt.plot(psd[i][:100])
+#         # Plot the power spectral density and fill the delta area
+#         plt.figure(figsize=(20, 10))
+#         plt.plot(freqs, psd, lw=2, color='k')
+#         plt.fill_between(freqs, psd, where=idx_k, color=colors[idx])
+#         plt.xlabel('Frequency (Hz)')
+#         plt.ylabel('Power spectral density (uV^2 / Hz)')
+#         plt.xlim([0, 60])
+#         plt.ylim([0, psd.max() * 1.1])
+#         plt.title("Welch's periodogram")
+#         sns.despine()
+#         break
+#     plt.show()
+#
+#     # for i in range(12):
+#     #     get_pywt(ecg_data[i])
+#     #     break

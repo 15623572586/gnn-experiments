@@ -85,11 +85,11 @@ if __name__ == '__main__':
     ecg_data = (ecg_data - data_mean) / data_std
     ecg_data = ecg_data.T
     stft_para = {
-        'stftn': 0.1,
+        'stftn': 5000,
         'fStart': [0.5, 2, 0.5],
         'fEnd': [35, 20, 10],
         'fs': 500,
-        'window': 1
+        'window': 1.0/500
     }
     psd, de = DE_PSD(ecg_data, stft_para)
 

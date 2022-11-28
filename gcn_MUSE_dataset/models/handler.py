@@ -5,11 +5,10 @@ import torch
 from tqdm import tqdm
 
 
-down_lr = [10, 100, 300, 400]
+down_lr = [10, 50, 100, 150, 200]
 
 
-def train(loader, criterion, args, model, epoch, scheduler, optimizer, count, down_lr_idx=None):
-    print("\nTraining epoch %d: " % epoch)
+def train(loader, criterion, args, model, epoch, scheduler, optimizer, count):
     loss_total = 0
     cnt = 0
     model.train()
@@ -59,13 +58,13 @@ def validation(loader, model, criterion, args):
     return pred_list, target_list, pred_scores, (loss_total / cnt)
 
 
-def save_model(model, model_dir, epoch=None):
+def save_model(model, model_dir, epoch=None, k_flod=None):
     if model_dir is None:
         return
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
-    epoch = str(epoch)
-    file_name = os.path.join(model_dir, epoch + '_stemgnn.pt')
+    # epoch = str(epoch)
+    file_name = os.path.join(model_dir, 'model.pt')
     with open(file_name, 'wb') as f:
         torch.save(model.state_dict(), f)
 

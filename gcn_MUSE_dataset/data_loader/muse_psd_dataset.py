@@ -66,8 +66,6 @@ class ECGPsdMuseDataset(Dataset):
         self.leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
         self.features = features
         self.n_leads = len(self.leads)
-        self.classes = classes
-        self.n_classes = len(self.classes)
         self.nans_filename = {}
 
     def __getitem__(self, index: int):

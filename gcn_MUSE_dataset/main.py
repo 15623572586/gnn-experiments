@@ -19,13 +19,13 @@ from utils.utils import split_data, performance, drawing_confusion_matric, drawi
 parser = argparse.ArgumentParser()
 parser.add_argument('--leads', type=int, default=12)
 parser.add_argument('--num_classes', type=int, default=4)
-parser.add_argument('--epoch', type=int, default=500)
+parser.add_argument('--epoch', type=int, default=200)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--device', type=str, default='cuda:0')
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--decay_rate', type=float, default=1e-5)
 parser.add_argument('--seq_len', type=int, default=5000)
-parser.add_argument('--features', type=int, default=256)
+parser.add_argument('--features', type=int, default=160)
 parser.add_argument('--num-workers', type=int, default=2,
                     help='Num of workers to load data')  # 多线程加载数据
 parser.add_argument('--log_path', type=str, default='output/logs')
@@ -37,12 +37,12 @@ parser.add_argument('--model_name', default='82_stemgnn.pt', action='store_true'
 parser.add_argument('--start', default=83, action='store_true', help='Resume')
 
 
-def loadData(args, epoch):
+def loadData(args, epoch, k_fold):
     org_data_dir = os.path.join(dataset_path)  # 源数据目录
     data_dir = os.path.join(org_data)  # 处理后的数据目录
 
     label_csv = os.path.join(dataset_path, 'labels.csv')
-    train_folds, val_folds, test_folds = split_data(seed=0)
+    train_folds, val_folds, test_folds = split_data(seed=0, k_fold=k_fold)
 
     train_dataset = ECGPsdMuseDataset('train', data_dir, label_csv, train_folds, features=args.features)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
@@ -63,8 +63,6 @@ if __name__ == '__main__':
     # loss
     criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数，常用于多分类任务
     model = EcgGCNModel(features=args.features, num_classes=args.num_classes).to(args.device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.1)
 
     total_params = 0
     for name, parameter in model.named_parameters():
@@ -94,47 +92,54 @@ if __name__ == '__main__':
 
     max_acc = 0
     count = 0  # 如果有10轮准确率低于max，调整学习率
-    for epoch in range(start, args.epoch + 1):
-        train_loader, val_loader, test_loader = loadData(args, epoch)
-        lrs.append(scheduler.get_last_lr()[0])
-        epoch_start_time = time.time()
-        count, train_loss = train(loader=train_loader, criterion=criterion, args=args, model=model, epoch=epoch,
-                                  scheduler=scheduler,
-                                  optimizer=optimizer, count=count)
-        train_time = (time.time() - epoch_start_time)
-        train_time_total += train_time
-        # test_loss = validation(val_loader, test_loader, model, criterion, args)
-        y_preds, y_trues, y_scores, test_loss = validation(test_loader, model, criterion, args)
-        confusion_matrix, evaluate_res = performance(y_preds, y_trues, y_scores)  # 模型评估
-        if evaluate_res['acc_value'] > max_acc:
-            if not os.path.exists(mat_path):
-                os.mkdir(mat_path)
-            if not os.path.exists(roc_path):
-                os.mkdir(roc_path)
-            max_acc = evaluate_res['acc_value']
-            count = 0
-            save_model(model=model, model_dir=result_train_file, epoch=epoch)
-            drawing_confusion_matric(confusion_matrix, os.path.join(mat_path, str(epoch) + '.png'))  # 绘制混淆矩阵
-            drawing_roc_auc(evaluate_res, os.path.join(roc_path, str(epoch) + '.png'))  # 绘制roc_auc曲线
-        else:
-            count += 1
-        log_infos = [['epoch_' + str(epoch) + '_' + str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())),
-                      '{:5.2f}s'.format(train_time),
-                      '{:.8f}'.format(scheduler.get_last_lr()[0]),
-                      '{:.4f}'.format(train_loss),
-                      '{:.4f}'.format(test_loss),
-                      '{:.4f}'.format(evaluate_res['f1_value']),
-                      '{:.4f}'.format(evaluate_res['acc_value']),
-                      '{:.4f}'.format(evaluate_res['precision']),
-                      '{:.4f}'.format(evaluate_res['recall'])
-                      ]]
-        print(log_infos[0])
-        df = pandas.DataFrame(log_infos)
-        if not os.path.exists(log_path):
-            header = ['epoch', 'training_time', 'lr', 'train_loss', 'test_loss', 'f1_value', 'val_acc', 'precision', 'recall']
-        else:
-            header = False
-        df.to_csv(log_path, mode='a', header=header, index=False)
+    for k in range(1, 11):
+        model = EcgGCNModel(features=args.features, num_classes=args.num_classes).to(args.device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.1)
+        for epoch in range(start, args.epoch + 1):
+            print("\nTraining epoch %d: " % epoch)
+            train_loader, val_loader, test_loader = loadData(args, epoch, k)
+            lrs.append(scheduler.get_last_lr()[0])
+            epoch_start_time = time.time()
+            count, train_loss = train(loader=train_loader, criterion=criterion, args=args, model=model, epoch=epoch,
+                                      scheduler=scheduler,
+                                      optimizer=optimizer, count=count)
+            train_time = (time.time() - epoch_start_time)
+            train_time_total += train_time
+            # test_loss = validation(val_loader, test_loader, model, criterion, args)
+            y_preds, y_trues, y_scores, test_loss = validation(test_loader, model, criterion, args)
+            confusion_matrix, evaluate_res = performance(y_preds, y_trues, y_scores)  # 模型评估
+            if evaluate_res['acc_value'] > max_acc:
+                if not os.path.exists(mat_path):
+                    os.mkdir(mat_path)
+                if not os.path.exists(roc_path):
+                    os.mkdir(roc_path)
+                max_acc = evaluate_res['acc_value']
+                count = 0
+                save_model(model=model, model_dir=result_train_file, epoch=epoch, k_flod=k)
+                # drawing_confusion_matric(confusion_matrix, os.path.join(mat_path, str(epoch) + '.png'))  # 绘制混淆矩阵
+                # drawing_roc_auc(evaluate_res, os.path.join(roc_path, str(epoch) + '.png'))  # 绘制roc_auc曲线
+                drawing_confusion_matric(confusion_matrix, os.path.join(mat_path, 'matrix.png'))  # 绘制混淆矩阵
+                drawing_roc_auc(evaluate_res, os.path.join(roc_path, 'roc.png'))  # 绘制roc_auc曲线
+            else:
+                count += 1
+            log_infos = [[str(k)+'_fold|epoch_' + str(epoch) + '_' + str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())),
+                          '{:5.2f}s'.format(train_time),
+                          '{:.8f}'.format(scheduler.get_last_lr()[0]),
+                          '{:.4f}'.format(train_loss),
+                          '{:.4f}'.format(test_loss),
+                          '{:.4f}'.format(evaluate_res['f1_value']),
+                          '{:.4f}'.format(evaluate_res['acc_value']),
+                          '{:.4f}'.format(evaluate_res['precision']),
+                          '{:.4f}'.format(evaluate_res['recall'])
+                          ]]
+            print(log_infos[0])
+            df = pandas.DataFrame(log_infos)
+            if not os.path.exists(log_path):
+                header = ['epoch', 'training_time', 'lr', 'train_loss', 'test_loss', 'f1_value', 'val_acc', 'precision', 'recall']
+            else:
+                header = False
+            df.to_csv(log_path, mode='a', header=header, index=False)
         # if count >= 50:  # 提前结束的条件
         #     break
         # time.sleep(0.5)
