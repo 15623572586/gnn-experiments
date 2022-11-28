@@ -115,7 +115,7 @@ def drawing_roc_auc(data, filename):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('4-calsses ROC')
+    plt.title(str(n_class)+'-calsses ROC')
     plt.legend(loc="lower right")
     plt.savefig(filename)
     plt.close()

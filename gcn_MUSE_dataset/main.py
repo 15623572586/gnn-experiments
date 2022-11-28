@@ -23,7 +23,7 @@ parser.add_argument('--epoch', type=int, default=200)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--device', type=str, default='cuda:0')
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--decay_rate', type=float, default=1e-5)
+parser.add_argument('--decay_rate', type=float, default=1e-2)
 parser.add_argument('--seq_len', type=int, default=5000)
 parser.add_argument('--features', type=int, default=160)
 parser.add_argument('--num-workers', type=int, default=2,
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     roc_path = os.path.join(args.roc_path, str(date.today()) + '-' + time.strftime("%H-%M-%S", time.localtime()))
 
     max_acc = 0
-    count = 0  # 如果有10轮准确率低于max，调整学习率
+    count = 0
     for k in range(1, 11):
         model = EcgGCNModel(features=args.features, num_classes=args.num_classes).to(args.device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay_rate)

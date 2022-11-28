@@ -20,15 +20,30 @@ from process.variables import processed_path, processed_data
 
 leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
 sub_classes = ['SB', 'SR', 'AFIB', 'ST', 'AF', 'SI', 'SVT', 'AT', 'AVNRT', 'AVRT', 'SAAWR']
+# super_classes = ['SR', 'SA', 'SVT', 'AFIB', 'SB', 'AF', 'ST']   # [, 'AT']
+# super_classes = ['AFIB', 'AF', 'ST', 'SVT', 'SB', 'SR', 'SA', 'AT']
+# class_dic = {
+#     'SB': 'SB',
+#     'SR': 'SR',
+#     'SA': 'SA',  # SI
+#     'AFIB': 'AFIB',
+#     'AF': 'AF',
+#     'SVT': 'SVT',
+#     # 'AT': 'AT',
+#     # 'SAAWR': 'GSVT',
+#     # 'AVNRT': 'GSVT',
+#     'ST': 'ST'
+#     # 'AVRT': 'GSVT'
+# }
 super_classes = ['AFIB', 'GSVT', 'SB', 'SR']
 class_dic = {
     'SB': 'SB',
     'SR': 'SR',
-    'SA': 'SR',  # SI
+    # 'SA': 'SR',  # SI
     'AFIB': 'AFIB',
     # 'AF': 'AFIB',
-    'SVT': 'GSVT',
-    'AT': 'GSVT',
+    # 'SVT': 'GSVT',
+    # 'AT': 'GSVT',
     # 'SAAWR': 'GSVT',
     # 'AVNRT': 'GSVT',
     'ST': 'GSVT'
@@ -224,7 +239,7 @@ def gen_psd(taget_dir, fs):
         df_data = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', file_name), header=None)
         ecg_data = df_data.values.T
         # f_values, psd = welch(x=ecg_data, fs=fs, nperseg=2048, return_onesided=True)
-        all_psds = np.zeros([12, features*4])
+        all_psds = np.zeros([12, features * 4])
         for j, x in enumerate(ecg_data):
             # 小波包分解个频段信号+重构各频段信号
             new_x = TimeFrequencyWP(x, fs=fs, wavelet='db8', maxlevel=9)
@@ -237,16 +252,18 @@ def gen_psd(taget_dir, fs):
         all_psds.to_csv(os.path.join(taget_dir, file_name), header=False, index=False)
     print('finished!')
 
+
+# 傅里叶变换获取频段特征
 def get_welch_psd(taget_dir, fs):
-    df = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\labels.csv'))
+    df = pd.read_excel(os.path.join(r'E:\01_科研\dataset\MUSE\Diagnostics.xlsx'), sheet_name=0)
     win = 4 * fs  # Define window length (4 seconds)
     features = int(win / fs * 40)
     for i, row in tqdm(df.iterrows()):
-        file_name = row['file_name'] + '.csv'
+        file_name = row['FileName'] + '.csv'
         df_data = pd.read_csv(os.path.join(r'E:\01_科研\dataset\MUSE\ECGDataDenoised', file_name), header=None)
         ecg_data = df_data.values.T
         # f_values, psd = welch(x=ecg_data, fs=fs, nperseg=2048, return_onesided=True)
-        all_psds = np.zeros([12, features*4])
+        all_psds = np.zeros([12, features * 4])
         for j, x in enumerate(ecg_data):
             lead_psds = np.zeros([4 * features])
             for k, name in enumerate(freq_names):
@@ -255,7 +272,7 @@ def get_welch_psd(taget_dir, fs):
                 fmin_idx = iter_freqs[k]['fmin'] * int(win / fs)
                 fmax_idx = iter_freqs[k]['fmax'] * int(win / fs)
                 # np.pad(array1, (0, 6 - len(array1)), 'constant', constant_values=(0, 0))
-                lead_psds[k * features:(k + 1) * features] = np.pad(psd[fmin_idx:fmax_idx], (0, features-fmax_idx))
+                lead_psds[k * features:(k + 1) * features] = np.pad(psd[fmin_idx:fmax_idx], (0, features - fmax_idx))
             all_psds[j] = lead_psds
         all_psds = DataFrame(all_psds.T)
         all_psds.to_csv(os.path.join(taget_dir, file_name), header=False, index=False)
@@ -263,8 +280,8 @@ def get_welch_psd(taget_dir, fs):
 
 
 if __name__ == '__main__':
-    # label_csv = os.path.join(r'E:\01_科研\dataset\MUSE', 'labels.csv')
-    # gen_label_muse_csv(label_csv)
+    label_csv = os.path.join(r'E:\01_科研\dataset\MUSE', 'labels.csv')
+    gen_label_muse_csv(label_csv)
     # resample_data()
-    get_welch_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD_200', fs=500)
+    # get_welch_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD_200', fs=500)
     # gen_de_and_psd(r'E:\01_科研\dataset\MUSE\ECGDataDenoised_PSD', r"E:\01_科研\dataset\MUSE\ECGDataDenoised_DE", fs=500)
